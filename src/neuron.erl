@@ -8,7 +8,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([]).
+-export([create/3, connect/2, signal/3]).
 
 %% ====================================================================
 %% Behavioural functions
@@ -17,8 +17,11 @@
 -record(out_item, {nid :: integer(), pid :: pid()}).
 -record(state, {nid :: integer(), input ::list(#inp_item{}), output :: list(#out_item{}), bias :: float(), accum :: float(), signals :: list()}).
 
-create(NeuronId, InpList, OutList, Bias) ->
-  erlang:spawn_link(?MODULE, init, [NeuronId, InpList, OutList, Bias]).
+create(NeuronId, InpList, Bias) ->
+  gen_server:start(?MODULE, [NeuronId, InpList, Bias], []).
+
+connect(Pid, OutList) ->
+  gen_server:call(Pid, {connect, OutList}).
 
 signal(Pid, CallerNid, Input) ->
   gen_server:call(Pid, {signal, CallerNid, Input}).
@@ -35,8 +38,8 @@ signal(Pid, CallerNid, Input) ->
 	State :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-init([]) ->
-	{ok, #state{}}.
+init(NeuronId, InpList, Bias) ->
+	{ok, #state{nid = NeuronId, input = InpList, output = [], bias = Bias, accum = 0, signals = []}}.
 
 %% handle_call/3
 %% ====================================================================
@@ -55,9 +58,19 @@ init([]) ->
 	Timeout :: non_neg_integer() | infinity,
 	Reason :: term().
 %% ====================================================================
+handle_call({connect, Outlist}, From, State) ->
+  {reply, ok, State#state{output = Outlist}};
+
+handle_call({signal, CallerNid, Input}, From, State#state{accum = Accum, signal = Signal}) ->
+  case lists:keyfind(CallerNid, 1, State#state.input) of
+    {CallerNid, Pid, Weight} -> New_accum = Accum + Input * Weight;
+    false -> New_accum = Accum
+  end
+   
+  {reply, ok, State#state{accum = New_accum}};
+
 handle_call(Request, From, State) ->
-	Reply = ok,
-	{reply, Reply, State}.
+  {reply, ok, State}.
 
 
 %% handle_cast/2
