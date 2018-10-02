@@ -9,7 +9,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([neuron/4, sensor/3, actuator/3, connect/2, signal/3]).
+-export([neuron/4, sensor/3, actuator/3, connect/3, signal/3]).
 
 %% ====================================================================
 %% Behavioural functions
@@ -24,8 +24,8 @@ sensor(CompId, InpList, Cortes_pid) ->
 actuator(CompId, InpList, Cortes_pid) ->
   gen_server:start_link(?MODULE, [{actuator, CompId, InpList, undefined, Cortes_pid}], []).
 
-connect(Pid, OutList) ->
-  gen_server:call(Pid, {connect, OutList}).
+connect(Pid, OutList, Cortex_Id) ->
+  gen_server:call(Pid, {connect, OutList, Cortex_Id}).
 
 signal(Pid, CallerNid, Input) ->
   gen_server:call(Pid, {signal, CallerNid, Input}).
@@ -42,12 +42,14 @@ signal(Pid, CallerNid, Input) ->
 	State :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-init([neuron, NeuronId, OutList, Bias, Cortes_pid]) ->
-	{ok, #state{nid = NeuronId, component_type = neuron, cortes_pid = Cortes_pid, input = [], output = OutList, bias = Bias, accum = undefined, signals = []}};
-init([sensor, NeuronId, InpList, Bias, Cortes_pid]) ->
-	{ok, #state{nid = NeuronId, component_type = sensor, cortes_pid = Cortes_pid, input = InpList, output = [], bias = Bias, accum = 0, signals = []}};
-init([actuator, NeuronId, InpList, Bias, Cortes_pid]) ->
-	{ok, #state{nid = NeuronId, component_type = actuator, cortes_pid = Cortes_pid, input = InpList, output = [], bias = Bias, accum = [], signals = []}}.
+init(#inp_config{type = neuron, nid = NeuronId, bias = Bias, input = InputList}) ->
+	{ok, #state{nid = NeuronId, component_type = neuron, cortes_pid = undefined, input = InputList, output = [], bias = Bias, accum = 0, signals = []}};
+
+init(#inp_config{type = sensor, nid = NeuronId, bias = Bias, input = InputList}) ->
+	{ok, #state{nid = NeuronId, component_type = sensor, cortes_pid = undefined, input = InputList, output = [], bias = Bias, accum = undefined, signals = []}};
+
+init(#inp_config{type = actuator, nid = NeuronId, bias = Bias, input = InputList}) ->
+	{ok, #state{nid = NeuronId, component_type = actuator, cortes_pid = underfined, input = InputList, output = [], bias = Bias, accum = [], signals = []}}.
 
 %% handle_call/3
 %% ====================================================================
