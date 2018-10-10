@@ -7,8 +7,9 @@
                   kernel,
                   stdlib
                  ]},
-  {modules, []},
-  {mod, []},
+  {modules, [eml]},
+  {mod, {eml, []}},
   {env, [
-	]}
+
+  ]}
  ]}.

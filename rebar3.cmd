@@ -1,0 +1,1 @@
+C:\Users\axk456\Applications\erlang\bin\escript.exe C:\Users\axk456\Applications\erlang\rebar3 %*
