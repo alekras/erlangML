@@ -68,8 +68,9 @@ init(#inp_config{type = actuator, nid = NeuronId, bias = Bias, input = InputList
 	Timeout :: non_neg_integer() | infinity,
 	Reason :: term().
 %% ====================================================================
-handle_call({connect, Outlist}, _From, State) ->
-  {reply, ok, State#state{output = Outlist}};
+handle_call({connect, OutList, Cortex_Id}, _From, #state{} = State) ->
+  io:format("Connect: ~128p ~n", [OutList]),
+  {reply, ok, State#state{output = OutList, cortes_pid = Cortex_Id}};
 
 handle_call({signal, _CallerNid, Input}, _From, #state{component_type = sensor} = State) ->
   [signal(Out_Pid, Out_Nid, Input) || #out_item{nid = Out_Nid, pid = Out_Pid} <- State#state.output],
