@@ -1,0 +1,12 @@
+{application, dynconf,
+ [
+  {description, "dynamically (on fly) change conficuration"},
+  {vsn, "0.0.1"},
+  {registered, []},
+  {applications, []},
+  {modules, []},
+  {mod, {dynconf, []}},
+  {env, [
+    {test, 7}
+	]}
+ ]}.

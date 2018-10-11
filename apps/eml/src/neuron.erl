@@ -9,20 +9,20 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([neuron/4, sensor/3, actuator/3, connect/3, signal/3]).
+-export([neuron/1, sensor/1, actuator/1, connect/3, signal/3]).
 
 %% ====================================================================
 %% Behavioural functions
 %% ====================================================================
 
-neuron(CompId, InpList, Bias, Cortes_pid) ->
-  gen_server:start_link(?MODULE, [{neuron, CompId, InpList, Bias, Cortes_pid}], []).
+neuron(Config) ->
+  gen_server:start_link(?MODULE, Config, []).
 
-sensor(CompId, InpList, Cortes_pid) ->
-  gen_server:start_link(?MODULE, [{sensor, CompId, InpList, undefined, Cortes_pid}], []).
+sensor(Config) ->
+  gen_server:start_link(?MODULE, Config, []).
 
-actuator(CompId, InpList, Cortes_pid) ->
-  gen_server:start_link(?MODULE, [{actuator, CompId, InpList, undefined, Cortes_pid}], []).
+actuator(Config) ->
+  gen_server:start_link(?MODULE, Config, []).
 
 connect(Pid, OutList, Cortex_Id) ->
   gen_server:call(Pid, {connect, OutList, Cortex_Id}).
@@ -68,8 +68,9 @@ init(#inp_config{type = actuator, nid = NeuronId, bias = Bias, input = InputList
 	Timeout :: non_neg_integer() | infinity,
 	Reason :: term().
 %% ====================================================================
-handle_call({connect, Outlist}, _From, State) ->
-  {reply, ok, State#state{output = Outlist}};
+handle_call({connect, OutList, Cortex_Id}, _From, #state{} = State) ->
+  io:format("Connect: ~128p ~n", [OutList]),
+  {reply, ok, State#state{output = OutList, cortes_pid = Cortex_Id}};
 
 handle_call({signal, _CallerNid, Input}, _From, #state{component_type = sensor} = State) ->
   [signal(Out_Pid, Out_Nid, Input) || #out_item{nid = Out_Nid, pid = Out_Pid} <- State#state.output],
