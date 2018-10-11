@@ -1,5 +1,5 @@
 %%
-%% Copyright (C) 2015-2017 by krasnop@bellsouth.net (Alexei Krasnopolski)
+%% Copyright (C) 2018-2018 by krasnop@bellsouth.net (Alexei Krasnopolski)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -15,19 +15,19 @@
 %%
 
 %% @hidden
-%% @since 2016-01-03
-%% @copyright 2015-2017 Alexei Krasnopolski
+%% @since 2018-10-10
+%% @copyright 2018-2018 Alexei Krasnopolski
 %% @author Alexei Krasnopolski <krasnop@bellsouth.net> [http://krasnopolski.org/]
 %% @version {@version}
 %% @doc This module is running erlang unit tests.
 
--module(mqtt_client_tests).
+-module(eml_tests).
 
 %%
 %% Include files
 %%
 -include_lib("eunit/include/eunit.hrl").
--include_lib("mqtt_common/include/mqtt.hrl").
+-include_lib("eml/include/nn.hrl").
 -include("test.hrl").
 
 -export([
@@ -40,7 +40,7 @@
 %%
 %% API Functions
 %%
-mqtt_client_test_() ->
+eml_test_() ->
 	[ 
 %		{module, mqtt_client_unit_testing},
 		{ setup, 
