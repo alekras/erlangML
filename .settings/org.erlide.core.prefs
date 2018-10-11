@@ -4,4 +4,4 @@ external_includes=
 external_modules=
 include_dirs=apps/eml/include;
 output_dir=ebin
-source_dirs=apps/dynconf/src;apps/eml/src;
+source_dirs=apps/dynconf/src;apps/eml/src;apps/eml/test;
