@@ -1,7 +1,8 @@
-%% @author alekras
-%% @doc @todo Add description to neuron.
+%% @author axk456
+%% @doc @todo Add description to cortex.
 
--module(neuron).
+
+-module(cortex).
 -behaviour(gen_server).
 -include("nn.hrl").
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -9,26 +10,15 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([neuron/1, sensor/1, actuator/1, connect/3, signal/3]).
+-export([start_link/0]).
+
+start_link() ->
+  io:format(user, " >>> start_link.~n", []),
+  gen_server:start_link({local, cortex}, ?MODULE, [], []).
 
 %% ====================================================================
 %% Behavioural functions
 %% ====================================================================
-
-neuron(Config) ->
-  gen_server:start_link(?MODULE, Config, []).
-
-sensor(Config) ->
-  gen_server:start_link(?MODULE, Config, []).
-
-actuator(Config) ->
-  gen_server:start_link(?MODULE, Config, []).
-
-connect(Pid, OutList, Cortex_Id) ->
-  gen_server:call(Pid, {connect, OutList, Cortex_Id}).
-
-signal(Pid, CallerNid, Input) ->
-  gen_server:call(Pid, {signal, CallerNid, Input}).
 
 %% init/1
 %% ====================================================================
@@ -42,14 +32,10 @@ signal(Pid, CallerNid, Input) ->
 	State :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-init(#inp_config{type = neuron, nid = NeuronId, bias = Bias, input = InputList}) ->
-	{ok, #state{nid = NeuronId, component_type = neuron, cortes_pid = undefined, input = InputList, output = [], bias = Bias, accum = 0, signals = InputList}};
+init([]) ->
+  io:format(user, " >>> Init.~n", []),
+  {ok, #cortex_state{}}.
 
-init(#inp_config{type = sensor, nid = NeuronId, bias = Bias}) ->
-	{ok, #state{nid = NeuronId, component_type = sensor, cortes_pid = undefined, input = [], output = [], bias = Bias, accum = undefined, signals = []}};
-
-init(#inp_config{type = actuator, nid = NeuronId, bias = Bias, input = InputList}) ->
-	{ok, #state{nid = NeuronId, component_type = actuator, cortes_pid = underfined, input = InputList, output = [], bias = Bias, accum = [], signals = InputList}}.
 
 %% handle_call/3
 %% ====================================================================
@@ -68,51 +54,13 @@ init(#inp_config{type = actuator, nid = NeuronId, bias = Bias, input = InputList
 	Timeout :: non_neg_integer() | infinity,
 	Reason :: term().
 %% ====================================================================
-handle_call({connect, OutList, Cortex_Id}, _From, #state{} = State) ->
-  io:format("Connect: nid=~p type=~p ~128p ~n", [State#state.nid, State#state.component_type, OutList]),
-  {reply, ok, State#state{output = OutList, cortes_pid = Cortex_Id}};
-
-handle_call({signal, _CallerNid, Input}, _From, #state{component_type = sensor} = State) ->
-  io:format("Signal {signal, ~p, ~p} comes to sensor nid=~p.~n", [_CallerNid, Input, State#state.nid]),
-  [signal(Out_Pid, State#state.nid, Input) || #out_item{nid = Out_Nid, pid = Out_Pid} <- State#state.output],
+handle_call({actuator, Result}, From, State) ->
+  io:format(user, "message comes to cortex ~p.~n", [Result]),
   {reply, ok, State};
 
-handle_call({signal, CallerNid, Input}, _From, #state{component_type = neuron, accum = Accum, signals = Signals} = State) ->
-  io:format("Signal {signal, ~p, ~p} comes to neuron nid=~p.~n", [CallerNid, Input, State#state.nid]),
-  io:format("Signals list: ~p.~n", [Signals]),
-  case lists:keytake(CallerNid, #inp_item.nid, Signals) of
-    {value, #inp_item{nid = CallerNid, weight = Weight}, []} ->
-      Final_accum = Accum + Input * Weight + State#state.bias,
-      [signal(Out_Pid, State#state.nid, math:tanh(Final_accum)) || #out_item{nid = _Out_Nid, pid = Out_Pid} <- State#state.output],
-      New_signals = State#state.input,
-      New_accum = 0;
-    {value, #inp_item{nid = CallerNid, weight = Weight}, New_signals} ->
-      New_accum = Accum + Input * Weight;
-    false ->
-      New_accum = Accum,
-      New_signals = Signals,
-      io:format("Wrong message {signal, ~p, ~p} comes to neuron.~n", [CallerNid, Input])
-  end,
-  {reply, ok, State#state{accum = New_accum, signals = New_signals}};
-
-handle_call({signal, CallerNid, Input}, _From, #state{component_type = actuator, accum = Accum, signals = Signals} = State) ->
-  io:format("Signal {signal, ~p, ~p} comes to actuator nid=~p.~n", [CallerNid, Input, State#state.nid]),
-  case lists:keytake(CallerNid, #inp_item.nid, Signals) of
-    {value, #inp_item{nid = CallerNid, weight = Weight}, []} ->
-      New_accum = [Input | Accum],
-      State#state.cortes_pid ! {actuator, New_accum},
-      New_signals = State#state.input;
-    {value, #inp_item{nid = CallerNid, weight = Weight}, New_signals} ->
-      New_accum = [Input | Accum];
-    false ->
-      io:format("Wrong message {signal, ~p, ~p} comes to actuator.~n", [CallerNid, Input]),
-      New_signals = Signals,
-      New_accum = Accum
-  end,
-  {reply, ok, State#state{accum = New_accum, signals = New_signals}};
-
-handle_call(_Request, _From, State) ->
-  {reply, ok, State}.
+handle_call(Request, From, State) ->
+    Reply = ok,
+    {reply, Reply, State}.
 
 
 %% handle_cast/2
@@ -126,8 +74,8 @@ handle_call(_Request, _From, State) ->
 	NewState :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-handle_cast(_Msg, State) ->
-	{noreply, State}.
+handle_cast(Msg, State) ->
+    {noreply, State}.
 
 
 %% handle_info/2
@@ -141,8 +89,12 @@ handle_cast(_Msg, State) ->
 	NewState :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-handle_info(_Info, State) ->
-	{noreply, State}.
+
+handle_info({actuator, Result}, State) ->
+  io:format(user, "handle_info: message comes to cortex ~p.~n", [Result]),
+    {noreply, State};
+handle_info(Info, State) ->
+    {noreply, State}.
 
 
 %% terminate/2
@@ -154,8 +106,8 @@ handle_info(_Info, State) ->
 			| {shutdown, term()}
 			| term().
 %% ====================================================================
-terminate(_Reason, _State) ->
-	ok.
+terminate(Reason, State) ->
+    ok.
 
 
 %% code_change/3
@@ -166,8 +118,8 @@ terminate(_Reason, _State) ->
 	OldVsn :: Vsn | {down, Vsn},
 	Vsn :: term().
 %% ====================================================================
-code_change(_OldVsn, State, _Extra) ->
-	{ok, State}.
+code_change(OldVsn, State, Extra) ->
+    {ok, State}.
 
 
 %% ====================================================================
