@@ -57,5 +57,6 @@ configurate(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
   ?debug_Fmt("~n::test:: configurate: ~p ~p",[_X, _Y]),
   cortex_sup:configurate(cortex_sup:configuration()),
   cortex_sup:send_signal_to(0, 2),
+  cortex_sup:send_signal_to(0, 2),
   ?PASSED
 end}.

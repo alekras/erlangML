@@ -13,7 +13,6 @@
 -export([start_link/0]).
 
 start_link() ->
-  io:format(user, " >>> start_link.~n", []),
   gen_server:start_link({local, cortex}, ?MODULE, [], []).
 
 %% ====================================================================
@@ -33,7 +32,6 @@ start_link() ->
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
 init([]) ->
-  io:format(user, " >>> Init.~n", []),
   {ok, #cortex_state{}}.
 
 
@@ -54,11 +52,11 @@ init([]) ->
 	Timeout :: non_neg_integer() | infinity,
 	Reason :: term().
 %% ====================================================================
-handle_call({actuator, Result}, From, State) ->
+handle_call({actuator, Result}, _From, State) ->
   io:format(user, "message comes to cortex ~p.~n", [Result]),
   {reply, ok, State};
 
-handle_call(Request, From, State) ->
+handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
@@ -74,7 +72,7 @@ handle_call(Request, From, State) ->
 	NewState :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-handle_cast(Msg, State) ->
+handle_cast(_Msg, State) ->
     {noreply, State}.
 
 
@@ -93,7 +91,7 @@ handle_cast(Msg, State) ->
 handle_info({actuator, Result}, State) ->
   io:format(user, "handle_info: message comes to cortex ~p.~n", [Result]),
     {noreply, State};
-handle_info(Info, State) ->
+handle_info(_Info, State) ->
     {noreply, State}.
 
 
@@ -106,7 +104,7 @@ handle_info(Info, State) ->
 			| {shutdown, term()}
 			| term().
 %% ====================================================================
-terminate(Reason, State) ->
+terminate(_Reason, _State) ->
     ok.
 
 
@@ -118,7 +116,7 @@ terminate(Reason, State) ->
 	OldVsn :: Vsn | {down, Vsn},
 	Vsn :: term().
 %% ====================================================================
-code_change(OldVsn, State, Extra) ->
+code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 
