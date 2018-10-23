@@ -46,17 +46,28 @@ eml_test_() ->
 					fun testing:do_setup/1, 
 					fun testing:do_cleanup/2, 
 					[
-						{{1, config}, fun configurate/2}
+						{{1, config}, fun configure/2}
 					]
 			 }
 			]}
 		}
 	].
 
-configurate(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
-  ?debug_Fmt("~n::test:: configurate: ~p ~p",[_X, _Y]),
-  cortex_sup:configurate(cortex_sup:configuration()),
-  cortex_sup:send_signal_to(0, 2),
-  cortex_sup:send_signal_to(0, 2),
+configure(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
+  ?debug_Fmt("~n::test:: configure: ~p ~p",[_X, _Y]),
+  cortex:applyGenotype(cortex_1, configuration()),
+  cortex:send_signal_to(cortex_1, 0, 2),
+  ?debug_Fmt("::test:: RESULT: ~128p.", [cortex:result(cortex_1)]),
+%  cortex:send_signal_to(cortex_1, 0, 2),
   ?PASSED
 end}.
+
+configuration() ->
+  [
+    #inp_config{type = sensor, nid = 0, input = [], bias = undefined},
+    #inp_config{type = neuron, nid = 1, input = [#inp_item{nid = 0, weight = 1.2}], bias = 0.3},
+    #inp_config{type = neuron, nid = 2, input = [#inp_item{nid = 1, weight = 0.5}], bias = 0.4},
+    #inp_config{type = neuron, nid = 3, input = [#inp_item{nid = 0, weight = 1.0}, #inp_item{nid = 1, weight = 0.9}], bias = 0.5},
+    #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 1, weight = 1.2}, #inp_item{nid = 2, weight = 0.9}, #inp_item{nid = 3, weight = 0.5}], bias = 0.5},
+    #inp_config{type = actuator, nid = 5, input = [#inp_item{nid = 2, weight = 1}, #inp_item{nid = 3, weight = 1}, #inp_item{nid = 4, weight = 1}], bias = undefined}
+  ].

@@ -10,7 +10,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([start_link/1, applyGenotype/2]).
+-export([start_link/1, applyGenotype/2, send_signal_to/3, result/1]).
 
 start_link(NN_ID) ->
   Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
@@ -18,6 +18,12 @@ start_link(NN_ID) ->
 
 applyGenotype(Pid, Genotype) ->
   gen_server:call(Pid, {genotype, Genotype}).
+
+send_signal_to(Pid, Nid, Val) ->
+  gen_server:cast(Pid, {signal, Nid, Val}).
+
+result(Pid) ->
+  gen_server:call(Pid, result).
 
 %% ====================================================================
 %% Behavioural functions
@@ -57,41 +63,40 @@ init(NN_ID) ->
 	Timeout :: non_neg_integer() | infinity,
 	Reason :: term().
 %% ====================================================================
-handle_call({actuator, Result}, _From, State) ->
-  io:format(user, "message comes to cortex ~p.~n", [Result]),
-  {reply, ok, State};
-
 handle_call({genotype, Genotype}, _From, State) ->
-  io:format(user, "Genotype ~p.[Pid=~p]~n", [Genotype,self()]),
-  Is_Alive = is_process_alive(State#cortex_state.neuron_supervisor),
+  io:format(user, "~nGenotype ~p.~n[Pid=~p]~n", [Genotype,self()]),
+  Sup_curr_Pid = State#cortex_state.neuron_supervisor,
+  Is_Alive = is_pid(Sup_curr_Pid) andalso is_process_alive(Sup_curr_Pid),
   if
     Is_Alive ->
       io:format(user, "Neuron supervisor is alive.~n", []),
-      Sup_Pid = State#cortex_state.neuron_supervisor,
-      [begin supervisor:terminate_child(State#cortex_state.neuron_supervisor, Id), supervisor:delete_child(State#cortex_state.neuron_supervisor, Id) end 
-        || {Id, _Pid, _, _} <- supervisor:which_children(State#cortex_state.neuron_supervisor)];
+      Sup_Pid = Sup_curr_Pid,
+      [begin supervisor:terminate_child(Sup_curr_Pid, Id), supervisor:delete_child(Sup_curr_Pid, Id) end 
+        || {Id, _Pid, _, _} <- supervisor:which_children(Sup_curr_Pid)];
     true ->
       io:format(user, "Neuron supervisor is not running.~n", []),
       {ok, Sup_Pid} = supervisor:start_link(neuron_sup, [])
   end,
   Neuron_Child_Spec = [{NId, {neuron, Type, [Config]}, permanent, 2000, worker, [neuron]} || #inp_config{type = Type, nid = NId} = Config <- Genotype],
-  Ch_Pids = [{NId, supervisor:start_child(Sup_Pid, Ch_Spec)} || {NId, _, _, _, _, _} = Ch_Spec <- Neuron_Child_Spec],
-  configure(Ch_Pids, Genotype),
-  {reply, ok, State#cortex_state{genotype = Genotype}};
+  Ch_Id_Pids =[{Ch_Id, Ch_Pid} || {Ch_Id, {ok, Ch_Pid}} <- [{NId, supervisor:start_child(Sup_Pid, Ch_Spec)} || {NId, _, _, _, _, _} = Ch_Spec <- Neuron_Child_Spec]],
+  configure(Ch_Id_Pids, Genotype),
+  {reply, ok, State#cortex_state{genotype = Genotype, neuron_supervisor = Sup_Pid, id_pids = Ch_Id_Pids}};
+
+handle_call(result, _From, State) ->
+  {reply, State#cortex_state.result, State};
 
 handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+  io:format(user, "unknown request comes to cortex ~p.~n", [_Request]),
+  {reply, ok, State}.
 
 configure(Ch_Pids, Genotype) ->
-  Id_Pid = [{Id, Pid} || {Id, {ok, Pid}} <- Ch_Pids],
 %  io:format(user, "Id_Pid: ~128p cortex Pid=~p~n", [Id_Pid, Cortex_Pid]),
 %  io:format(user, "Configuration: ~128p ~n", [ConfList]),
-  Comp_output_temp = [#out_config{nid = Nid, pid = proplists:get_value(Nid, Id_Pid), output = []} || #inp_config{nid = Nid} <- Genotype],
+  Comp_output_temp = [#out_config{nid = Nid, pid = proplists:get_value(Nid, Ch_Pids), output = []} || #inp_config{nid = Nid} <- Genotype],
 %  io:format(user, "Comp_output_temp: ~128p ~n", [Comp_output_temp]),
   Temp = lists:flatten([[{Nid, Inp_item} || Inp_item <- InpList] || #inp_config{nid = Nid, input = InpList} <- Genotype]),
 %  io:format(user, "Temp: ~128p ~n", [Temp]),
-  Comp_output = process(Comp_output_temp, Id_Pid, Temp),
+  Comp_output = process(Comp_output_temp, Ch_Pids, Temp),
 %  io:format(user, "Comp_output: ~128p ~n", [Comp_output]),
   [neuron:connect(Pid, OutList, self()) || #out_config{pid = Pid, output = OutList} <- Comp_output].
 
@@ -119,8 +124,18 @@ process(O, Id_Pid_list, [{Nid_O, #inp_item{nid = Nid_I}} | T]) ->
 	NewState :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
+handle_cast({actuator, Result}, State) ->
+  io:format(user, "cast: message comes to cortex ~p.~n", [Result]),
+  {noreply, State#cortex_state{result = Result}};
+
+handle_cast({signal, Nid, Val}, State) ->
+  io:format(user, "signal comes to cortex ~p/~p.~n", [Nid, Val]),
+  Pid = proplists:get_value(Nid, State#cortex_state.id_pids),
+  neuron:signal(Pid, -1, Val),
+  {noreply, State};
+
 handle_cast(_Msg, State) ->
-    {noreply, State}.
+  {noreply, State}.
 
 
 %% handle_info/2
@@ -137,7 +152,7 @@ handle_cast(_Msg, State) ->
 
 handle_info({actuator, Result}, State) ->
   io:format(user, "handle_info: message comes to cortex ~p.~n", [Result]),
-    {noreply, State};
+    {noreply, State#cortex_state{result = Result}};
 handle_info(_Info, State) ->
     {noreply, State}.
 

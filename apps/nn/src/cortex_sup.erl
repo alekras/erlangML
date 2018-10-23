@@ -10,20 +10,10 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([configuration/0, start_link/0, send_signal_to/2]).
-
-configuration() ->
-  [
-    #inp_config{type = sensor, nid = 0, input = [], bias = undefined},
-    #inp_config{type = neuron, nid = 1, input = [#inp_item{nid = 0, weight = 1.2}], bias = 0.3},
-    #inp_config{type = neuron, nid = 2, input = [#inp_item{nid = 1, weight = 0.5}], bias = 0.4},
-    #inp_config{type = neuron, nid = 3, input = [#inp_item{nid = 0, weight = 1.0}, #inp_item{nid = 1, weight = 0.9}], bias = 0.5},
-    #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 1, weight = 1.2}, #inp_item{nid = 2, weight = 0.9}, #inp_item{nid = 3, weight = 0.5}], bias = 0.5},
-    #inp_config{type = actuator, nid = 5, input = [#inp_item{nid = 2, weight = 1}, #inp_item{nid = 3, weight = 1}, #inp_item{nid = 4, weight = 1}], bias = undefined}
-  ].
+-export([start_link/0]).
 
 start_link() ->
-  supervisor:start_link({local, cortex_sup}, ?MODULE, [1]).
+  supervisor:start_link({local, cortex_sup}, ?MODULE, 1).
 
 %% ====================================================================
 %% Behavioural functions
@@ -48,15 +38,12 @@ start_link() ->
 %% ====================================================================
 init(NN_ID) ->
   Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
+  io:format(user, "cortex_sup init: ~p ~p ~n", [Cortex_Id, NN_ID]),
   Childs = [{Cortex_Id, {cortex, start_link, [NN_ID]}, permanent, 2000, worker, [cortex]}],
 %%  | [{NId, {neuron, Type, [Config]}, permanent, 2000, worker, [neuron]} || #inp_config{type = Type, nid = NId} = Config <- configuration()]],
 %%  AChild = {'AName',{'AModule',start_link,[]}, permanent,2000,worker,['AModule']},
   {ok,{{one_for_one, 1, 1}, Childs}}.
 
-send_signal_to(Nid, Val) ->
-  Id_Pid = [{Id, Pid} || {Id, Pid, _, _} <- supervisor:which_children(cortex_sup)],
-  Pid = proplists:get_value(Nid, Id_Pid),
-  neuron:signal(Pid, 0, Val).
 %% ====================================================================
 %% Internal functions
 %% ====================================================================

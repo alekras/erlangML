@@ -25,10 +25,10 @@ actuator(Config) ->
   gen_server:start_link(?MODULE, Config, []).
 
 connect(Pid, OutList, Cortex_Id) ->
-  gen_server:call(Pid, {connect, OutList, Cortex_Id}).
+  gen_server:cast(Pid, {connect, OutList, Cortex_Id}).
 
 signal(Pid, CallerNid, Input) ->
-  gen_server:call(Pid, {signal, CallerNid, Input}).
+  gen_server:cast(Pid, {signal, CallerNid, Input}).
 
 %% init/1
 %% ====================================================================
@@ -100,7 +100,8 @@ handle_call({signal, CallerNid, Input}, _From, #state{component_type = actuator,
   case lists:keytake(CallerNid, #inp_item.nid, Signals) of
     {value, #inp_item{nid = CallerNid}, []} ->
       Final_accum = [Input | Accum],
-      State#state.cortes_pid ! {actuator, Final_accum},
+      gen_server:cast(State#state.cortes_pid, {actuator, Final_accum}),
+%      gen_server:call(State#state.cortes_pid, {actuator, Final_accum}),
       New_signals = State#state.input,
       New_accum = [];
     {value, #inp_item{nid = CallerNid}, New_signals} ->
@@ -127,6 +128,50 @@ handle_call(_Request, _From, State) ->
 	NewState :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
+handle_cast({connect, OutList, Cortex_Id}, #state{} = State) ->
+  io:format("Connect: nid=~p type=~p ~128p ~n", [State#state.nid, State#state.component_type, OutList]),
+  {noreply, State#state{output = OutList, cortes_pid = Cortex_Id}};
+
+handle_cast({signal, _CallerNid, Input}, #state{component_type = sensor} = State) ->
+  io:format("Signal {signal, ~p, ~p} comes to sensor nid=~p.~n", [_CallerNid, Input, State#state.nid]),
+  [signal(Out_Pid, State#state.nid, Input) || #out_item{pid = Out_Pid} <- State#state.output],
+  {noreply, State};
+
+handle_cast({signal, CallerNid, Input}, #state{component_type = neuron, accum = Accum, signals = Signals} = State) ->
+  io:format("Signal {signal, ~p, ~p} comes to neuron nid=~p.~n    Signals list: ~p.~n~n", [CallerNid, Input, State#state.nid, Signals]),
+  case lists:keytake(CallerNid, #inp_item.nid, Signals) of
+    {value, #inp_item{nid = CallerNid, weight = Weight}, []} ->
+      Final_accum = Accum + Input * Weight + State#state.bias,
+      [signal(Out_Pid, State#state.nid, math:tanh(Final_accum)) || #out_item{nid = _Out_Nid, pid = Out_Pid} <- State#state.output],
+      New_signals = State#state.input,
+      New_accum = 0;
+    {value, #inp_item{nid = CallerNid, weight = Weight}, New_signals} ->
+      New_accum = Accum + Input * Weight;
+    false ->
+      New_accum = Accum,
+      New_signals = Signals,
+      io:format("Wrong message {signal, ~p, ~p} comes to neuron nid=~p.~n", [CallerNid, Input, State#state.nid])
+  end,
+  {noreply, State#state{accum = New_accum, signals = New_signals}};
+
+handle_cast({signal, CallerNid, Input}, #state{component_type = actuator, accum = Accum, signals = Signals} = State) ->
+  io:format("Signal {signal, ~p, ~p} comes to actuator nid=~p.~n", [CallerNid, Input, State#state.nid]),
+  case lists:keytake(CallerNid, #inp_item.nid, Signals) of
+    {value, #inp_item{nid = CallerNid}, []} ->
+      Final_accum = [Input | Accum],
+      gen_server:cast(State#state.cortes_pid, {actuator, Final_accum}),
+%      gen_server:call(State#state.cortes_pid, {actuator, Final_accum}),
+      New_signals = State#state.input,
+      New_accum = [];
+    {value, #inp_item{nid = CallerNid}, New_signals} ->
+      New_accum = [Input | Accum];
+    false ->
+      io:format("Wrong message {signal, ~p, ~p} comes to actuator nid=~p.~n", [CallerNid, Input, State#state.nid]),
+      New_signals = Signals,
+      New_accum = Accum
+  end,
+  {noreply, State#state{accum = New_accum, signals = New_signals}};
+
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
