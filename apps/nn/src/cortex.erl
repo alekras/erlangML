@@ -10,7 +10,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([start_link/1, applyGenotype/2, send_signal_to/3, result/2]).
+-export([start_link/1, applyGenotype/2, send_signal_to/2, result/2]).
 
 start_link(NN_ID) ->
   Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
@@ -19,8 +19,8 @@ start_link(NN_ID) ->
 applyGenotype(Pid, Genotype) ->
   gen_server:call(Pid, {genotype, Genotype}).
 
-send_signal_to(Pid, Nid, Val) ->
-  gen_server:cast(Pid, {signal, Nid, Val}).
+send_signal_to(Pid, Values) ->
+  gen_server:cast(Pid, {signal, Values}).
 
 result(Pid, Callback_Fun) ->
   gen_server:call(Pid, {result, Callback_Fun}).
@@ -80,7 +80,8 @@ handle_call({genotype, Genotype}, _From, State) ->
   Neuron_Child_Spec = [{NId, {neuron, Type, [Config]}, permanent, 2000, worker, [neuron]} || #inp_config{type = Type, nid = NId} = Config <- Genotype],
   Ch_Id_Pids =[{Ch_Id, Ch_Pid} || {Ch_Id, {ok, Ch_Pid}} <- [{NId, supervisor:start_child(Sup_Pid, Ch_Spec)} || {NId, _, _, _, _, _} = Ch_Spec <- Neuron_Child_Spec]],
   configure(Ch_Id_Pids, Genotype),
-  {reply, ok, State#cortex_state{genotype = Genotype, neuron_supervisor = Sup_Pid, id_pids = Ch_Id_Pids}};
+  Sensors_Pids = [{NId, proplists:get_value(NId, Ch_Id_Pids)} || #inp_config{type = Type, nid = NId} <- Genotype, Type =:= sensor],
+  {reply, ok, State#cortex_state{genotype = Genotype, neuron_supervisor = Sup_Pid, id_pids = Ch_Id_Pids, sensors = Sensors_Pids}};
 
 handle_call({result, Callback_Fun}, _From, State) ->
   if
@@ -134,10 +135,9 @@ handle_cast({actuator, Result}, #cortex_state{result_callback = Fun} = State) ->
   Fun(Result),
   {noreply, State};
 
-handle_cast({signal, Nid, Val}, State) ->
-  io:format(user, "signal comes to cortex ~p/~p.~n", [Nid, Val]),
-  Pid = proplists:get_value(Nid, State#cortex_state.id_pids),
-  neuron:signal(Pid, -1, Val),
+handle_cast({signal, Values}, State) ->
+  io:format(user, "signal comes to cortex ~p.~n    Sensors are ~128p.~n", [Values, State#cortex_state.sensors]),
+  [neuron:signal(Pid, -1, proplists:get_value(N, Values, 0.0)) || {N, Pid} <- State#cortex_state.sensors],
   {noreply, State};
 
 handle_cast(_Msg, State) ->

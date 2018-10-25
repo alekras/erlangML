@@ -10,10 +10,10 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([start_link/0]).
+-export([start_link/0, new_nn/2]).
 
 start_link() ->
-  supervisor:start_link({local, cortex_sup}, ?MODULE, 1).
+  supervisor:start_link({local, cortex_sup}, ?MODULE, 0).
 
 %% ====================================================================
 %% Behavioural functions
@@ -39,10 +39,17 @@ start_link() ->
 init(NN_ID) ->
   Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
   io:format(user, "cortex_sup init: ~p ~p ~n", [Cortex_Id, NN_ID]),
-  Childs = [{Cortex_Id, {cortex, start_link, [NN_ID]}, permanent, 2000, worker, [cortex]}],
+%%  Childs = [{Cortex_Id, {cortex, start_link, [NN_ID]}, permanent, 2000, worker, [cortex]}],
+  Childs = [],
 %%  | [{NId, {neuron, Type, [Config]}, permanent, 2000, worker, [neuron]} || #inp_config{type = Type, nid = NId} = Config <- configuration()]],
 %%  AChild = {'AName',{'AModule',start_link,[]}, permanent,2000,worker,['AModule']},
   {ok,{{one_for_one, 1, 1}, Childs}}.
+
+new_nn(Sup_Pid, N) ->
+  Cortex_Id = list_to_atom(lists:concat(["cortex_", N])),
+  io:format(user, "cortex_sup new: ~p ~p ~n", [Cortex_Id, N]),
+  Ch_Spec = {Cortex_Id, {cortex, start_link, [N]}, permanent, 2000, worker, [cortex]},
+  supervisor:start_child(Sup_Pid, Ch_Spec).
 
 %% ====================================================================
 %% Internal functions

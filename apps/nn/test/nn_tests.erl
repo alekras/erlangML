@@ -57,24 +57,41 @@ configure(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
 	register(test_result, self()),
 
 	?debug_Fmt("~n::test:: configure: ~p ~p",[_X, _Y]),
+  cortex_sup:new_nn(cortex_sup, 1),
   cortex:applyGenotype(cortex_1, configuration()),
   Fun = fun(R) -> ?debug_Fmt("::test:: RESULT: ~128p.", [R]), test_result ! done end,
   cortex:result(cortex_1, Fun),
-  cortex:send_signal_to(cortex_1, 0, 2),
-	timer:sleep(500),
-  cortex:send_signal_to(cortex_1, 0, 0.5),
-	W = wait_all(2),
+  cortex:send_signal_to(cortex_1, [{0, 2}, {6, 1}]),
+  W1 = wait_all(1),
+  cortex:send_signal_to(cortex_1, [{0, 0.5}, {6, 3}]),
+	W2 = wait_all(1),
 	unregister(test_result),
-	?assert(W),
+	?assert(W1),
+  ?assert(W2),
   ?PASSED
 end}.
 
 configuration() ->
   [
-    #inp_config{type = sensor, nid = 0, input = [], bias = undefined},
-    #inp_config{type = neuron, nid = 1, input = [#inp_item{nid = 0, weight = 1.2}], bias = 0.3},
-    #inp_config{type = neuron, nid = 2, input = [#inp_item{nid = 1, weight = 0.5}], bias = 0.4},
-    #inp_config{type = neuron, nid = 3, input = [#inp_item{nid = 0, weight = 1.0}, #inp_item{nid = 1, weight = 0.9}], bias = 0.5},
-    #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 1, weight = 1.2}, #inp_item{nid = 2, weight = 0.9}, #inp_item{nid = 3, weight = 0.5}], bias = 0.5},
-    #inp_config{type = actuator, nid = 5, input = [#inp_item{nid = 2, weight = 1}, #inp_item{nid = 3, weight = 1}, #inp_item{nid = 4, weight = 1}], bias = undefined}
+    #inp_config{type = sensor, nid = 0, input = []},
+    #inp_config{type = sensor, nid = 6, input = []},
+    #inp_config{type = neuron, nid = 1, input = [#inp_item{nid = 0, weight = 1.2}],
+                bias = 0.3},
+    #inp_config{type = neuron, nid = 2, input = [#inp_item{nid = 1, weight = 0.5}],
+                bias = 0.4},
+    #inp_config{type = neuron, nid = 3, input = [#inp_item{nid = 0, weight = 1.0},
+                                                 #inp_item{nid = 1, weight = 0.9},
+                                                 #inp_item{nid = 6, weight = 0.5}
+                                                ],
+                bias = 0.5},
+    #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 1, weight = 1.2},
+                                                 #inp_item{nid = 2, weight = 0.9},
+                                                 #inp_item{nid = 6, weight = 0.5},
+                                                 #inp_item{nid = 3, weight = 0.5}
+                                                ],
+                bias = 0.5},
+    #inp_config{type = actuator, nid = 5, input = [#inp_item{nid = 2, weight = 1},
+                                                   #inp_item{nid = 3, weight = 1},
+                                                   #inp_item{nid = 4, weight = 1}
+                                                  ]}
   ].

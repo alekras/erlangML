@@ -31,6 +31,7 @@
 -record(cortex_state, {
   genotype = [] :: list(#inp_config{}),
   id_pids = [] :: list(),
+  sensors = [] :: list(),
   result_callback :: fun(),
   neuron_supervisor :: pid()
 }).
