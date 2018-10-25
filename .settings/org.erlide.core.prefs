@@ -4,4 +4,4 @@ external_includes=
 external_modules=
 include_dirs=apps/nn/include;
 output_dir=ebin
-source_dirs=apps/nn/src;
+source_dirs=apps/nn/src;apps/nn/test;

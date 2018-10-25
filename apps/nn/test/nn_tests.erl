@@ -54,11 +54,18 @@ eml_test_() ->
 	].
 
 configure(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
-  ?debug_Fmt("~n::test:: configure: ~p ~p",[_X, _Y]),
+	register(test_result, self()),
+
+	?debug_Fmt("~n::test:: configure: ~p ~p",[_X, _Y]),
   cortex:applyGenotype(cortex_1, configuration()),
+  Fun = fun(R) -> ?debug_Fmt("::test:: RESULT: ~128p.", [R]), test_result ! done end,
+  cortex:result(cortex_1, Fun),
   cortex:send_signal_to(cortex_1, 0, 2),
-  ?debug_Fmt("::test:: RESULT: ~128p.", [cortex:result(cortex_1)]),
-%  cortex:send_signal_to(cortex_1, 0, 2),
+	timer:sleep(500),
+  cortex:send_signal_to(cortex_1, 0, 0.5),
+	W = wait_all(2),
+	unregister(test_result),
+	?assert(W),
   ?PASSED
 end}.
 

@@ -10,7 +10,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([start_link/1, applyGenotype/2, send_signal_to/3, result/1]).
+-export([start_link/1, applyGenotype/2, send_signal_to/3, result/2]).
 
 start_link(NN_ID) ->
   Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
@@ -22,8 +22,8 @@ applyGenotype(Pid, Genotype) ->
 send_signal_to(Pid, Nid, Val) ->
   gen_server:cast(Pid, {signal, Nid, Val}).
 
-result(Pid) ->
-  gen_server:call(Pid, result).
+result(Pid, Callback_Fun) ->
+  gen_server:call(Pid, {result, Callback_Fun}).
 
 %% ====================================================================
 %% Behavioural functions
@@ -82,8 +82,13 @@ handle_call({genotype, Genotype}, _From, State) ->
   configure(Ch_Id_Pids, Genotype),
   {reply, ok, State#cortex_state{genotype = Genotype, neuron_supervisor = Sup_Pid, id_pids = Ch_Id_Pids}};
 
-handle_call(result, _From, State) ->
-  {reply, State#cortex_state.result, State};
+handle_call({result, Callback_Fun}, _From, State) ->
+  if
+    is_function(Callback_Fun, 1) ->
+      {reply, ok, State#cortex_state{result_callback = Callback_Fun}};
+    true ->
+      {reply, error, State}
+  end;
 
 handle_call(_Request, _From, State) ->
   io:format(user, "unknown request comes to cortex ~p.~n", [_Request]),
@@ -124,9 +129,10 @@ process(O, Id_Pid_list, [{Nid_O, #inp_item{nid = Nid_I}} | T]) ->
 	NewState :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-handle_cast({actuator, Result}, State) ->
+handle_cast({actuator, Result}, #cortex_state{result_callback = Fun} = State) ->
   io:format(user, "cast: message comes to cortex ~p.~n", [Result]),
-  {noreply, State#cortex_state{result = Result}};
+  Fun(Result),
+  {noreply, State};
 
 handle_cast({signal, Nid, Val}, State) ->
   io:format(user, "signal comes to cortex ~p/~p.~n", [Nid, Val]),
@@ -150,9 +156,10 @@ handle_cast(_Msg, State) ->
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
 
-handle_info({actuator, Result}, State) ->
+handle_info({actuator, Result}, #cortex_state{result_callback = Fun} = State) ->
   io:format(user, "handle_info: message comes to cortex ~p.~n", [Result]),
-    {noreply, State#cortex_state{result = Result}};
+  Fun(Result),
+  {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
