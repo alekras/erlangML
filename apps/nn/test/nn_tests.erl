@@ -59,22 +59,22 @@ configure(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
 	?debug_Fmt("~n::test:: configure: ~p ~p",[_X, _Y]),
   cortex_sup:new_nn(cortex_sup, 1),
   cortex:applyGenotype(cortex_1, configuration(0)),
-  Fun1 = fun(R) -> ?debug_Fmt("::test:: RESULT: ~128p.", [R]), test_result ! done end,
+  Fun1 = fun(R) -> ?debug_Fmt("::test:: RESULT[0]: ~128p.", [R]), test_result ! done end,
   cortex:result(cortex_1, Fun1),
 
   cortex_sup:new_nn(cortex_sup, 2),
   cortex:applyGenotype(cortex_2, configuration(1)),
-  Fun2 = fun(R) -> ?debug_Fmt("::test:: RESULT: ~128p.", [R]), test_result ! done end,
+  Fun2 = fun(R) -> ?debug_Fmt("::test:: RESULT[1]: ~128p.", [R]), test_result ! done end,
   cortex:result(cortex_2, Fun2),
 
   cortex:send_signal_to(cortex_1, [{0, 2}, {6, 1}]),
   cortex:send_signal_to(cortex_2, [{0, 2}, {1, 1}]),
-  W1 = wait_all(2),
-  cortex:send_signal_to(cortex_1, [{0, 0.5}, {6, 3}]),
-	W2 = wait_all(1),
+  W1 = wait_all(3),
+%%   cortex:send_signal_to(cortex_1, [{0, 0.5}, {6, 3}]),
+%% 	W2 = wait_all(1),
 	unregister(test_result),
 	?assert(W1),
-  ?assert(W2),
+%%  ?assert(W2),
   ?PASSED
 end}.
 
@@ -130,7 +130,7 @@ configuration(1) ->
     #inp_config{type = actuator, nid = 8, input = [#inp_item{nid = 2, weight = 1},
                                                    #inp_item{nid = 7, weight = 1}
                                                   ]},
-    #inp_config{type = actuator, nid = 8, input = [#inp_item{nid = 6, weight = 1},
+    #inp_config{type = actuator, nid = 9, input = [#inp_item{nid = 6, weight = 1},
                                                    #inp_item{nid = 7, weight = 1}
                                                   ]}
   ].
