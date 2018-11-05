@@ -1,6 +1,6 @@
 {application, dynconf,
  [
-  {description, "dynamically (on fly) change conficuration"},
+  {description, "dynamically (on fly) change configuration"},
   {vsn, "0.0.1"},
   {registered, []},
   {applications, []},
