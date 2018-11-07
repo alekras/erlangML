@@ -154,12 +154,12 @@ handle_cast({signal, CallerNid, Input}, #state{component_type = neuron, accum = 
   end,
   {noreply, State#state{accum = New_accum, signals = New_signals}};
 
-handle_cast({signal, CallerNid, Input}, #state{component_type = actuator, accum = Accum, signals = Signals} = State) ->
+handle_cast({signal, CallerNid, Input}, #state{nid = Nid, component_type = actuator, accum = Accum, signals = Signals} = State) ->
   io:format("Signal {signal, ~p, ~p} comes to actuator nid=~p.~n", [CallerNid, Input, State#state.nid]),
   case lists:keytake(CallerNid, #inp_item.nid, Signals) of
     {value, #inp_item{nid = CallerNid}, []} ->
       Final_accum = [Input | Accum],
-      gen_server:cast(State#state.cortes_pid, {actuator, Final_accum}),
+      gen_server:cast(State#state.cortes_pid, {actuator, Nid, Final_accum}),
 %      gen_server:call(State#state.cortes_pid, {actuator, Final_accum}),
       New_signals = State#state.input,
       New_accum = [];

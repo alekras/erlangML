@@ -32,6 +32,9 @@
   genotype = [] :: list(#inp_config{}),
   id_pids = [] :: list(),
   sensors = [] :: list(),
+  actuators = [] :: list(),
+  actions = [] :: list(),
   result_callback :: fun(),
+  result :: term(),
   neuron_supervisor :: pid()
 }).

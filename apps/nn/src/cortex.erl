@@ -81,7 +81,8 @@ handle_call({genotype, Genotype}, _From, State) ->
   Ch_Id_Pids =[{Ch_Id, Ch_Pid} || {Ch_Id, {ok, Ch_Pid}} <- [{NId, supervisor:start_child(Sup_Pid, Ch_Spec)} || {NId, _, _, _, _, _} = Ch_Spec <- Neuron_Child_Spec]],
   configure(Ch_Id_Pids, Genotype),
   Sensors_Pids = [{NId, proplists:get_value(NId, Ch_Id_Pids)} || #inp_config{type = Type, nid = NId} <- Genotype, Type =:= sensor],
-  {reply, ok, State#cortex_state{genotype = Genotype, neuron_supervisor = Sup_Pid, id_pids = Ch_Id_Pids, sensors = Sensors_Pids}};
+  Actuators_Pids = [{NId, proplists:get_value(NId, Ch_Id_Pids)} || #inp_config{type = Type, nid = NId} <- Genotype, Type =:= actuator],
+  {reply, ok, State#cortex_state{genotype = Genotype, neuron_supervisor = Sup_Pid, id_pids = Ch_Id_Pids, sensors = Sensors_Pids, actuators = Actuators_Pids}};
 
 handle_call({result, Callback_Fun}, _From, State) ->
   if
@@ -130,15 +131,26 @@ process(O, Id_Pid_list, [{Nid_O, #inp_item{nid = Nid_I}} | T]) ->
 	NewState :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-handle_cast({actuator, Result}, #cortex_state{result_callback = Fun} = State) ->
+handle_cast({actuator, Nid, Result}, #cortex_state{result_callback = Fun, actions = Actions, result = St_Result} = State) ->
   io:format(user, "cast: message comes to cortex ~p.~n", [Result]),
-  Fun(Result),
-  {noreply, State};
+  case lists:keytake(Nid, 1, Actions) of
+    {value, {Nid, _}, []} ->
+      New_result = [Result | St_Result],
+      New_Actions = [],
+      Fun(New_result);
+    {value, {Nid, _}, New_Actions} ->
+      New_result = [Result | St_Result];
+    false ->
+      io:format("Wrong message {actuator, ~p, ~p} comes to cortex.~n", [Nid, Result]),
+      New_Actions = Actions,
+      New_result = St_Result
+  end,
+  {noreply, State#cortex_state{actions = New_Actions, result = New_result}};
 
 handle_cast({signal, Values}, State) ->
   io:format(user, "signal comes to cortex ~p.~n    Sensors are ~128p.~n", [Values, State#cortex_state.sensors]),
   [neuron:signal(Pid, -1, proplists:get_value(N, Values, 0.0)) || {N, Pid} <- State#cortex_state.sensors],
-  {noreply, State};
+  {noreply, State#cortex_state{actions = State#cortex_state.actuators, result = []}};
 
 handle_cast(_Msg, State) ->
   {noreply, State}.
