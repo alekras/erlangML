@@ -1,6 +1,6 @@
 -record(inp_item, {
-  nid :: integer(),
-  weight = 1 :: float()
+  nid = -1:: integer(),
+  weight = 0.0 :: float()
 }).
 -record(out_item, {
   nid :: integer(),
@@ -30,8 +30,9 @@
 
 -record(cortex_state, {
   genotype = [] :: list(#inp_config{}),
-  id_pids = [] :: list(),
+  nid_pids = [] :: list(),
   sensors = [] :: list(),
+  neurons = [] :: list(),
   actuators = [] :: list(),
   actions = [] :: list(),
   result_callback :: fun(),

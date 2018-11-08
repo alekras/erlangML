@@ -54,26 +54,30 @@ eml_test_() ->
 	].
 
 configure(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
-	register(test_result, self()),
+  register(test_result, self()),
 
-	?debug_Fmt("~n::test:: configure: ~p ~p",[_X, _Y]),
+  ?debug_Fmt("~n::test:: configure: ~p ~p",[_X, _Y]),
   cortex_sup:new_nn(cortex_sup, 1),
   cortex:applyGenotype(cortex_1, configuration(0)),
   Fun1 = fun(R) -> ?debug_Fmt("::test:: RESULT[0]: ~128p.", [R]), test_result ! done end,
-  cortex:result(cortex_1, Fun1),
+  cortex:set_call_back(cortex_1, Fun1),
 
   cortex_sup:new_nn(cortex_sup, 2),
   cortex:applyGenotype(cortex_2, configuration(1)),
   Fun2 = fun(R) -> ?debug_Fmt("::test:: RESULT[1]: ~128p.", [R]), test_result ! done end,
-  cortex:result(cortex_2, Fun2),
+  cortex:set_call_back(cortex_2, Fun2),
 
-  cortex:send_signal_to(cortex_1, [{0, 2}, {6, 1}]),
-  cortex:send_signal_to(cortex_2, [{0, 2}, {1, 1}]),
-  W1 = wait_all(3),
+%  cortex:send_signal_to(cortex_1, [{0, 2}, {6, 1}]),
+%  wait_all(1),
+  cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
+  W2 = wait_all(1),
+  cortex:updateWeights(cortex_2, [{7, [0.5,3.0,1.3]}]),
+  cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
+  W3 = wait_all(1),
 %%   cortex:send_signal_to(cortex_1, [{0, 0.5}, {6, 3}]),
-%% 	W2 = wait_all(1),
+%% 	W4 = wait_all(1),
 	unregister(test_result),
-	?assert(W1),
+	?assert(W3),
 %%  ?assert(W2),
   ?PASSED
 end}.
@@ -97,9 +101,9 @@ configuration(0) ->
                                                  #inp_item{nid = 3, weight = 0.5}
                                                 ],
                 bias = 0.5},
-    #inp_config{type = actuator, nid = 5, input = [#inp_item{nid = 2, weight = 1},
-                                                   #inp_item{nid = 3, weight = 1},
-                                                   #inp_item{nid = 4, weight = 1}
+    #inp_config{type = actuator, nid = 5, input = [#inp_item{nid = 2},
+                                                   #inp_item{nid = 3},
+                                                   #inp_item{nid = 4}
                                                   ]}
   ];
 configuration(1) ->
@@ -127,10 +131,10 @@ configuration(1) ->
                                                  #inp_item{nid = 6, weight = 0.5}
                                                 ],
                 bias = 0.4},
-    #inp_config{type = actuator, nid = 8, input = [#inp_item{nid = 2, weight = 1},
-                                                   #inp_item{nid = 7, weight = 1}
+    #inp_config{type = actuator, nid = 8, input = [#inp_item{nid = 2},
+                                                   #inp_item{nid = 7}
                                                   ]},
-    #inp_config{type = actuator, nid = 9, input = [#inp_item{nid = 6, weight = 1},
-                                                   #inp_item{nid = 7, weight = 1}
+    #inp_config{type = actuator, nid = 9, input = [#inp_item{nid = 6},
+                                                   #inp_item{nid = 7}
                                                   ]}
   ].
