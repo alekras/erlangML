@@ -9,7 +9,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([neuron/1, sensor/1, actuator/1, connect/3, signal/3, update_weight/2]).
+-export([neuron/1, sensor/1, actuator/1, connect/3, signal/3, update_weight/2, extract_genom/1]).
 
 %% ====================================================================
 %% Behavioural functions
@@ -32,6 +32,9 @@ signal(Pid, CallerNid, Input) ->
 
 update_weight(Pid, Weight_List) ->
   gen_server:call(Pid, {update, Weight_List}).
+
+extract_genom(Pid) ->
+  gen_server:call(Pid, extract_genom).
 
 %% init/1
 %% ====================================================================
@@ -77,6 +80,10 @@ handle_call({update, Weight_List}, _From, #state{component_type = neuron, input 
   New_Input = update(Input, Weight_List),
   io:format("New_Input= ~128p.~n", [New_Input]),
   {reply, ok, State#state{input = New_Input}};
+
+handle_call(extract_genom, _From, #state{component_type = Type, nid = Nid, input = Input, bias = Bias} = State) ->
+  Genom = #inp_config{type = Type, nid = Nid, bias = Bias, input = Input},
+  {reply, Genom, State};
 
 handle_call(_Request, _From, State) ->
   io:format(user, "unknown request comes to neuron ~p.~n", [_Request]),

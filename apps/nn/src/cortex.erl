@@ -10,14 +10,17 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([start_link/1, applyGenotype/2, updateWeights/2, send_signal_to/2, set_call_back/2]).
+-export([start_link/1, applyGenotype/2, extractGenotype/1, updateWeights/2, send_signal_to/2, set_call_back/2]).
 
 start_link(NN_ID) ->
   Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
   gen_server:start_link({local, Cortex_Id}, ?MODULE, [NN_ID], []).
 
 applyGenotype(Pid, Genotype) ->
-  gen_server:call(Pid, {genotype, Genotype}).
+  gen_server:call(Pid, {genotype, apply, Genotype}).
+
+extractGenotype(Pid) ->
+  gen_server:call(Pid, {genotype, extract}).
 
 updateWeights(Pid, List) ->
   gen_server:call(Pid, {update, List}).
@@ -66,7 +69,7 @@ init(NN_ID) ->
 	Timeout :: non_neg_integer() | infinity,
 	Reason :: term().
 %% ====================================================================
-handle_call({genotype, Genotype}, _From, State) ->
+handle_call({genotype, apply, Genotype}, _From, State) ->
   io:format(user, "~nGenotype ~p.~n[Pid=~p]~n", [Genotype,self()]),
   Sup_curr_Pid = State#cortex_state.neuron_supervisor,
   Is_Alive = is_pid(Sup_curr_Pid) andalso is_process_alive(Sup_curr_Pid),
@@ -92,6 +95,14 @@ handle_call({genotype, Genotype}, _From, State) ->
                                  sensors = Sensors_Pids, 
                                  neurons = Neurons_Pids, 
                                  actuators = Actuators_Pids}};
+
+handle_call({genotype, extract}, _From, #cortex_state{sensors = Sensors, neurons = Neurons, actuators = Actuators} = State) ->
+  io:format(user, "~nExtract genotype.~n", []),
+  GT0 = [ neuron:extract_genom(Pid) || {Nid, Pid} <- Sensors],
+  GT1 = [ neuron:extract_genom(Pid) || {Nid, Pid} <- Neurons],
+  GT2 = [ neuron:extract_genom(Pid) || {Nid, Pid} <- Actuators],
+  GT = GT0 ++ GT1 ++ GT2,
+  {reply, GT, State#cortex_state{genotype = GT}};
 
 handle_call({update, List}, _From, #cortex_state{neurons = Neurons_nid_pidS} = State) ->
   io:format(user, ">>> update ~128p  ~128p.~n", [List, Neurons_nid_pidS]),
