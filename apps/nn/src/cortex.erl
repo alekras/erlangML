@@ -10,7 +10,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([start_link/1, applyGenotype/2, extractGenotype/1, updateWeights/2, send_signal_to/2, set_call_back/2]).
+-export([start_link/1, applyGenotype/2, extractGenotype/1, updateWeights/2, extractWeightsList/1, send_signal_to/2, set_call_back/2]).
 
 start_link(NN_ID) ->
   Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
@@ -23,7 +23,10 @@ extractGenotype(Pid) ->
   gen_server:call(Pid, {genotype, extract}).
 
 updateWeights(Pid, List) ->
-  gen_server:call(Pid, {update, List}).
+  gen_server:call(Pid, {update_weights, List}).
+
+extractWeightsList(Pid) ->
+  gen_server:call(Pid, extract_weights).
 
 send_signal_to(Pid, Values) ->
   gen_server:cast(Pid, {signal, Values}).
@@ -98,15 +101,20 @@ handle_call({genotype, apply, Genotype}, _From, State) ->
 
 handle_call({genotype, extract}, _From, #cortex_state{sensors = Sensors, neurons = Neurons, actuators = Actuators} = State) ->
   io:format(user, "~nExtract genotype.~n", []),
-  GT0 = [ neuron:extract_genom(Pid) || {Nid, Pid} <- Sensors],
-  GT1 = [ neuron:extract_genom(Pid) || {Nid, Pid} <- Neurons],
-  GT2 = [ neuron:extract_genom(Pid) || {Nid, Pid} <- Actuators],
+  GT0 = [neuron:extract_genom(Pid) || {_Nid, Pid} <- Sensors],
+  GT1 = [neuron:extract_genom(Pid) || {_Nid, Pid} <- Neurons],
+  GT2 = [neuron:extract_genom(Pid) || {_Nid, Pid} <- Actuators],
   GT = GT0 ++ GT1 ++ GT2,
   {reply, GT, State#cortex_state{genotype = GT}};
 
-handle_call({update, List}, _From, #cortex_state{neurons = Neurons_nid_pidS} = State) ->
-  io:format(user, ">>> update ~128p  ~128p.~n", [List, Neurons_nid_pidS]),
-  [neuron:update_weight(proplists:get_value(Nid, Neurons_nid_pidS), L) || {Nid, L} <- List],
+handle_call(extract_weights, _From, #cortex_state{neurons = Neurons} = State) ->
+  WT = [neuron:extract_weights(Pid) || {_Nid, Pid} <- Neurons],
+%%  io:format(user, "~nExtract weight list= ~128p.~n", [WT]),
+  {reply, WT, State};
+
+handle_call({update_weights, List}, _From, #cortex_state{neurons = Neurons_nid_pidS} = State) ->
+%%  io:format(user, ">>> update ~128p  ~128p.~n", [List, Neurons_nid_pidS]),
+  [neuron:update_weights(proplists:get_value(Nid, Neurons_nid_pidS), L) || {Nid, L} <- List],
   {reply, ok, State};
 
 handle_call({set_call_back, Callback_Fun}, _From, State) ->
@@ -160,26 +168,26 @@ handle_cast({actuator, Nid, Result}, #cortex_state{result_callback = Fun, action
   io:format(user, "Cortex[~p] >> message ~128p comes from actuator[~p].~n", [self(), Result, Nid]),
   case lists:keytake(Nid, 1, Actions) of
     {value, {Nid, _}, []} ->
-      New_result = [Result | St_Result],
+      New_Result = [Result | St_Result],
       New_Actions = [],
-      Fun(New_result);
+      %% @todo send to Scape
+      Fun(New_Result);
     {value, {Nid, _}, New_Actions} ->
-      New_result = [Result | St_Result];
+      New_Result = [Result | St_Result];
     false ->
       io:format("Wrong message {actuator, ~p, ~p} comes to cortex.~n", [Nid, Result]),
       New_Actions = Actions,
-      New_result = St_Result
+      New_Result = St_Result
   end,
-  {noreply, State#cortex_state{actions = New_Actions, result = New_result}};
+  {noreply, State#cortex_state{actions = New_Actions, result = New_Result}};
 
 handle_cast({signal, Values}, State) ->
-  io:format(user, "signal comes to cortex ~p.~n    Sensors are ~128p.~n", [Values, State#cortex_state.sensors]),
+%%  io:format(user, "signal comes to cortex ~p.~n    Sensors are ~128p.~n", [Values, State#cortex_state.sensors]),
   [neuron:signal(Pid, -1, proplists:get_value(N, Values, 0.0)) || {N, Pid} <- State#cortex_state.sensors],
   {noreply, State#cortex_state{actions = State#cortex_state.actuators, result = []}};
 
 handle_cast(_Msg, State) ->
   {noreply, State}.
-
 
 %% handle_info/2
 %% ====================================================================

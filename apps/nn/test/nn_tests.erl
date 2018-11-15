@@ -71,6 +71,7 @@ configure(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
 %  wait_all(1),
   cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
   W2 = wait_all(1),
+  ?debug_Fmt("::test::  weight List: = ~p~n", [cortex:extractWeightsList(cortex_2)]),
   cortex:updateWeights(cortex_2, [{7, [0.5,3.0,1.3]}, {2, [0.9]}]),
   cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
   W3 = wait_all(1),

@@ -9,7 +9,16 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([neuron/1, sensor/1, actuator/1, connect/3, signal/3, update_weight/2, extract_genom/1]).
+-export([
+  neuron/1,
+  sensor/1, 
+  actuator/1, 
+  connect/3, 
+  signal/3, 
+  update_weights/2, 
+  extract_genom/1, 
+  extract_weights/1
+]).
 
 %% ====================================================================
 %% Behavioural functions
@@ -30,11 +39,14 @@ connect(Pid, OutList, Cortex_Id) ->
 signal(Pid, CallerNid, Input) ->
   gen_server:cast(Pid, {signal, CallerNid, Input}).
 
-update_weight(Pid, Weight_List) ->
+update_weights(Pid, Weight_List) ->
   gen_server:call(Pid, {update, Weight_List}).
 
 extract_genom(Pid) ->
   gen_server:call(Pid, extract_genom).
+
+extract_weights(Pid) ->
+  gen_server:call(Pid, extract_weights).
 
 %% init/1
 %% ====================================================================
@@ -76,14 +88,19 @@ init(#inp_config{type = actuator, nid = NeuronId, bias = Bias, input = InputList
 %% ====================================================================
 
 handle_call({update, Weight_List}, _From, #state{component_type = neuron, input = Input} = State) ->
-  io:format("Neuron[~p] Update weights: Old W= ~128p New W=~128p.~n", [State#state.nid, Input, Weight_List]),
+%%  io:format("Neuron[~p] Update weights: Old W= ~128p New W=~128p.~n", [State#state.nid, Input, Weight_List]),
   New_Input = update(Input, Weight_List),
-  io:format("New_Input= ~128p.~n", [New_Input]),
-  {reply, ok, State#state{input = New_Input}};
+%%  io:format("New_Input= ~128p.~n", [New_Input]),
+  {reply, ok, State#state{input = New_Input, signals = New_Input}};
 
 handle_call(extract_genom, _From, #state{component_type = Type, nid = Nid, input = Input, bias = Bias} = State) ->
   Genom = #inp_config{type = Type, nid = Nid, bias = Bias, input = Input},
   {reply, Genom, State};
+
+handle_call(extract_weights, _From, #state{nid = Nid, input = Input, bias = Bias} = State) ->
+  Weights = {Nid, [W || #inp_item{weight = W} <- Input], Bias},
+%%  io:format("Extract Weights= ~128p.~n", [Weights]),
+  {reply, Weights, State};
 
 handle_call(_Request, _From, State) ->
   io:format(user, "unknown request comes to neuron ~p.~n", [_Request]),
@@ -114,12 +131,12 @@ handle_cast({connect, OutList, Cortex_Id}, #state{} = State) ->
   {noreply, State#state{output = OutList, cortes_pid = Cortex_Id}};
 
 handle_cast({signal, _CallerNid, Input}, #state{component_type = sensor} = State) ->
-  io:format("Sensor[~p] >>> signal {~p, ~p}.~n", [State#state.nid, _CallerNid, Input]),
+%%  io:format("Sensor[~p] >>> signal {~p, ~p}.~n", [State#state.nid, _CallerNid, Input]),
   [signal(Out_Pid, State#state.nid, Input) || #out_item{pid = Out_Pid} <- State#state.output],
   {noreply, State};
 
 handle_cast({signal, CallerNid, Input}, #state{component_type = neuron, accum = Accum, signals = Signals} = State) ->
-  io:format("Neuron[~p] >>> signal {~p, ~7.3f}  Signals list: ~256p.~n", [State#state.nid, CallerNid, Input, Signals]),
+%%  io:format("Neuron[~p] >>> signal {~p, ~7.3f}  Signals list: ~256p.~n", [State#state.nid, CallerNid, Input, Signals]),
   case lists:keytake(CallerNid, #inp_item.nid, Signals) of
     {value, #inp_item{nid = CallerNid, weight = Weight}, []} ->
       Final_accum = Accum + Input * Weight + State#state.bias,
@@ -136,7 +153,7 @@ handle_cast({signal, CallerNid, Input}, #state{component_type = neuron, accum = 
   {noreply, State#state{accum = New_accum, signals = New_signals}};
 
 handle_cast({signal, CallerNid, Input}, #state{nid = Nid, component_type = actuator, accum = Accum, signals = Signals} = State) ->
-  io:format("Actuator[~p] >>> signal {~p, ~p}.~n", [State#state.nid, CallerNid, Input]),
+%%  io:format("Actuator[~p] >>> signal {~p, ~p}.~n", [State#state.nid, CallerNid, Input]),
   case lists:keytake(CallerNid, #inp_item.nid, Signals) of
     {value, #inp_item{nid = CallerNid}, []} ->
       Final_accum = [Input | Accum],
