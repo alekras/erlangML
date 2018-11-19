@@ -86,7 +86,7 @@ configure(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
 %%   cortex:send_signal_to(cortex_1, [{0, 0.5}, {6, 3}]),
 %% 	W4 = wait_all(1),
   unregister(test_result),
-  ?assert(W3 and W2),
+  ?assert(W3 and W2 and W4),
 %%  ?assert(W2),
   ?PASSED
 end}.

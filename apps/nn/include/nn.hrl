@@ -11,6 +11,7 @@
   component_type = neuron :: neuron | sensor | actuator,
   cortes_pid :: pid(),
   input = [] ::list(#inp_item{}),
+  input_bak = [] ::list(#inp_item{}),
   output = [] :: list(#out_item{}),
   bias = 0.0 :: float(),
   accum = 0.0 :: float(),

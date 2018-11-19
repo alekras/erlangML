@@ -15,7 +15,8 @@
   actuator/1, 
   connect/3, 
   signal/3, 
-  update_weights/2, 
+  update_weights/2,
+  rollback_weights/1, 
   extract_genom/1, 
   extract_weights/1
 ]).
@@ -41,6 +42,9 @@ signal(Pid, CallerNid, Input) ->
 
 update_weights(Pid, Weight_List) ->
   gen_server:call(Pid, {update, Weight_List}).
+
+rollback_weights(Pid) ->
+  gen_server:call(Pid, rollback).
 
 extract_genom(Pid) ->
   gen_server:call(Pid, extract_genom).
@@ -91,7 +95,12 @@ handle_call({update, Weight_List}, _From, #state{component_type = neuron, input 
 %%  io:format("Neuron[~p] Update weights: Old W= ~128p New W=~128p.~n", [State#state.nid, Input, Weight_List]),
   New_Input = update(Input, Weight_List),
 %%  io:format("New_Input= ~128p.~n", [New_Input]),
-  {reply, ok, State#state{input = New_Input, signals = New_Input}};
+  {reply, ok, State#state{input = New_Input, input_bak = Input, signals = New_Input}};
+
+handle_call(rollback, _From, #state{component_type = neuron, input_bak = []} = State) ->
+  {reply, ok, State};
+handle_call(rollback, _From, #state{component_type = neuron, input_bak = InputBak} = State) ->
+  {reply, ok, State#state{input = InputBak, signals = InputBak, input_bak = []}};
 
 handle_call(extract_genom, _From, #state{component_type = Type, nid = Nid, input = Input, bias = Bias} = State) ->
   Genom = #inp_config{type = Type, nid = Nid, bias = Bias, input = Input},
@@ -127,7 +136,7 @@ update([Inp_Item | L1], [New_W | L2], L3) ->
   Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
 handle_cast({connect, OutList, Cortex_Id}, #state{} = State) ->
-%%  io:format("Connect: nid=~p type=~p ~128p ~n", [State#state.nid, State#state.component_type, OutList]),
+  io:format("Connect: nid=~p type=~p ~128p ~n", [State#state.nid, State#state.component_type, OutList]),
   {noreply, State#state{output = OutList, cortes_pid = Cortex_Id}};
 
 handle_cast({signal, _CallerNid, Input}, #state{component_type = sensor} = State) ->
@@ -153,7 +162,7 @@ handle_cast({signal, CallerNid, Input}, #state{component_type = neuron, accum = 
   {noreply, State#state{accum = New_accum, signals = New_signals}};
 
 handle_cast({signal, CallerNid, Input}, #state{nid = Nid, component_type = actuator, accum = Accum, signals = Signals} = State) ->
-%%  io:format("Actuator[~p] >>> signal {~p, ~p}.~n", [State#state.nid, CallerNid, Input]),
+  io:format(user, "Actuator[~p] >>> signal {~p, ~p}. list= ~p.~n", [State#state.nid, CallerNid, Input, Signals]),
   case lists:keytake(CallerNid, #inp_item.nid, Signals) of
     {value, #inp_item{nid = CallerNid}, []} ->
       Final_accum = [Input | Accum],
@@ -170,6 +179,7 @@ handle_cast({signal, CallerNid, Input}, #state{nid = Nid, component_type = actua
   {noreply, State#state{accum = New_accum, signals = New_signals}};
 
 handle_cast(_Msg, State) ->
+  io:format(user, "cast unexpected message came ~p.~n", [_Msg]),
   {noreply, State}.
 
 

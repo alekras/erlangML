@@ -10,7 +10,16 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([start_link/1, applyGenotype/2, extractGenotype/1, updateWeights/2, extractWeightsList/1, send_signal_to/2, set_call_back/2]).
+-export([
+  start_link/1, 
+  applyGenotype/2, 
+  extractGenotype/1, 
+  updateWeights/2,
+  rollbackWeights/1,
+  extractWeightsList/1, 
+  send_signal_to/2, 
+  set_call_back/2
+]).
 
 start_link(NN_ID) ->
   Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
@@ -24,6 +33,9 @@ extractGenotype(Pid) ->
 
 updateWeights(Pid, List) ->
   gen_server:call(Pid, {update_weights, List}).
+
+rollbackWeights(Pid) ->
+  gen_server:call(Pid, rollback_weights).
 
 extractWeightsList(Pid) ->
   gen_server:call(Pid, extract_weights).
@@ -73,7 +85,7 @@ init(NN_ID) ->
 	Reason :: term().
 %% ====================================================================
 handle_call({genotype, apply, Genotype}, _From, State) ->
-  io:format(user, "~nGenotype ~p.~n[Pid=~p]~n", [Genotype,self()]),
+%%  io:format(user, "~nGenotype ~p.~n[Pid=~p]~n", [Genotype,self()]),
   Sup_curr_Pid = State#cortex_state.neuron_supervisor,
   Is_Alive = is_pid(Sup_curr_Pid) andalso is_process_alive(Sup_curr_Pid),
   if
@@ -86,8 +98,7 @@ handle_call({genotype, apply, Genotype}, _From, State) ->
       io:format(user, "Neuron supervisor is not running.~n", []),
       {ok, Sup_Pid} = supervisor:start_link(neuron_sup, [])
   end,
-  Neuron_Child_Spec = [{NId, {neuron, Type, [Config]}, permanent, 2000, worker, [neuron]} || #inp_config{type = Type, nid = NId} = Config <- Genotype],
-  Ch_Id_Pids =[{Ch_NId, Ch_Pid} || {Ch_NId, {ok, Ch_Pid}} <- [{NId, supervisor:start_child(Sup_Pid, Ch_Spec)} || {NId, _, _, _, _, _} = Ch_Spec <- Neuron_Child_Spec]],
+  Ch_Id_Pids = neuron_sup:build_nn(Genotype, Sup_Pid),
   configure(Ch_Id_Pids, Genotype),
   Sensors_Pids = [{NId, proplists:get_value(NId, Ch_Id_Pids)} || #inp_config{type = Type, nid = NId} <- Genotype, Type =:= sensor],
   Neurons_Pids = [{NId, proplists:get_value(NId, Ch_Id_Pids)} || #inp_config{type = Type, nid = NId} <- Genotype, Type =:= neuron],
@@ -117,6 +128,11 @@ handle_call({update_weights, List}, _From, #cortex_state{neurons = Neurons_nid_p
   [neuron:update_weights(proplists:get_value(Nid, Neurons_nid_pidS), L) || {Nid, L} <- List],
   {reply, ok, State};
 
+handle_call(rollback, _From, #cortex_state{neurons = Neurons} = State) ->
+%%  io:format(user, ">>> update ~128p  ~128p.~n", [List, Neurons_nid_pidS]),
+  [neuron:rollback_weights(Pid) || {_Nid, Pid} <- Neurons],
+  {reply, ok, State};
+
 handle_call({set_call_back, Callback_Fun}, _From, State) ->
   if
     is_function(Callback_Fun, 1) ->
@@ -138,7 +154,8 @@ configure(Ch_Pids, Genotype) ->
 %  io:format(user, "Temp: ~128p ~n", [Temp]),
   Comp_output = process(Comp_output_temp, Ch_Pids, Temp),
 %  io:format(user, "Comp_output: ~128p ~n", [Comp_output]),
-  [neuron:connect(Pid, OutList, self()) || #out_config{pid = Pid, output = OutList} <- Comp_output].
+%  [neuron:connect(Pid, OutList, self()) || #out_config{pid = Pid, output = OutList} <- Comp_output].
+  neuron_sup:connect_nn(Comp_output, self()).
 
 process(O, _, []) -> O;
 process(O, Id_Pid_list, [{Nid_O, #inp_item{nid = Nid_I}} | T]) ->
@@ -205,7 +222,6 @@ handle_info(_Info, State) ->
   io:format(user, "unknown request comes to cortex ~p.~n", [_Info]),
   {noreply, State}.
 
-
 %% terminate/2
 %% ====================================================================
 %% @doc <a href="http://www.erlang.org/doc/man/gen_server.html#Module:terminate-2">gen_server:terminate/2</a>
@@ -216,7 +232,7 @@ handle_info(_Info, State) ->
 			| term().
 %% ====================================================================
 terminate(_Reason, _State) ->
-    ok.
+  ok.
 
 
 %% code_change/3
