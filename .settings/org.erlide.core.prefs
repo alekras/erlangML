@@ -3,5 +3,5 @@ eclipse.preferences.version=1
 external_includes=
 external_modules=
 include_dirs=apps/nn/include;
-output_dir=ebin
+output_dir=_build/default/lib/nn/ebin
 source_dirs=apps/nn/src;apps/nn/test;

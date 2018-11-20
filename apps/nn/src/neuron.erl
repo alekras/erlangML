@@ -11,8 +11,8 @@
 %% ====================================================================
 -export([
   neuron/1,
-  sensor/1, 
-  actuator/1, 
+%%   sensor/1, 
+%%   actuator/1, 
   connect/3, 
   signal/3, 
   update_weights/2,
@@ -28,11 +28,11 @@
 neuron(Config) ->
   gen_server:start_link(?MODULE, Config, []).
 
-sensor(Config) ->
-  gen_server:start_link(?MODULE, Config, []).
-
-actuator(Config) ->
-  gen_server:start_link(?MODULE, Config, []).
+%% sensor(Config) ->
+%%   gen_server:start_link(?MODULE, Config, []).
+%% 
+%% actuator(Config) ->
+%%   gen_server:start_link(?MODULE, Config, []).
 
 connect(Pid, OutList, Cortex_Id) ->
   gen_server:cast(Pid, {connect, OutList, Cortex_Id}).
@@ -118,7 +118,6 @@ handle_call(_Request, _From, State) ->
 update(L1, L2) ->
   update(L1, L2, []).
 
-update([], [], L3) -> lists:reverse(L3);
 update([], _, L3) -> lists:reverse(L3);
 update(_, [], L3) -> lists:reverse(L3);
 update([Inp_Item | L1], [New_W | L2], L3) ->
