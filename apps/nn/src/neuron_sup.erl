@@ -16,7 +16,7 @@ start_link() ->
   supervisor:start_link(?MODULE, []).
 
 build_nn(Genotype, Neuron_Sup_Pid) ->
-  Neuron_Child_Spec = [{NId, {neuron, Type, [Config]}, permanent, 2000, worker, [neuron]} || #inp_config{type = Type, nid = NId} = Config <- Genotype],
+  Neuron_Child_Spec = [{NId, {neuron, neuron, [Config]}, permanent, 2000, worker, [neuron]} || #inp_config{type = Type, nid = NId} = Config <- Genotype],
   [{Ch_NId, Ch_Pid} || {Ch_NId, {ok, Ch_Pid}} <- [{NId, supervisor:start_child(Neuron_Sup_Pid, Ch_Spec)} || {NId, _, _, _, _, _} = Ch_Spec <- Neuron_Child_Spec]].
 
 connect_nn(Neuron_Output_List, Cortex_Pid) ->

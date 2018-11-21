@@ -37,6 +37,7 @@
   actuators = [] :: list(),
   actions = [] :: list(),
   result_callback :: fun(),
+  scape_pid :: pid(), 
   result :: term(),
   neuron_supervisor :: pid()
 }).

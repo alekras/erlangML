@@ -31,84 +31,58 @@
 -include("test.hrl").
 
 -export([
+  do_setup/1,
+  do_cleanup/2
 ]).
 -import(testing, [wait_all/1]).
 %%
 %% API Functions
 %%
-eml_test_() ->
+neuron_test_() ->
 	[ 
 		{ setup, 
 			fun testing:do_start/0, 
 			fun testing:do_stop/1, 
 			{inorder, [
 				{ foreachx, 
-					fun testing:do_setup/1, 
-					fun testing:do_cleanup/2, 
+					fun ?MODULE:do_setup/1, 
+					fun ?MODULE:do_cleanup/2, 
 					[
             {{1, neuron}, fun create/2},
             {{1, sensor}, fun create/2},
-            {{1, actuator}, fun create/2}
+            {{1, actuator}, fun create/2},
+            {{2, signal}, fun signal/2}
 					]
 			 }
 			]}
 		}
 	].
 
-create({1, neuron} = _X, _Y) -> {"NN neuron creation test", timeout, 1, fun() ->
-  ?debug_Fmt("~n::test:: neuron create: ~p ~p",[_X, _Y]),
+do_setup({1, neuron}) ->
+  #inp_config{type = neuron, nid = 1, bias = 0.0, input = [#inp_item{nid = 0, weight = 1.0}]};
+do_setup({1, sensor}) ->
+  #inp_config{type = sensor, nid = 1};
+do_setup({1, actuator}) ->
+  #inp_config{type = actuator, nid = 1, input = [#inp_item{nid = 0}]};
+do_setup({2, signal}) ->
+  #inp_config{type = neuron, nid = 10, bias = 0.2, input = [#inp_item{nid = 0, weight = 1.0},
+                                                            #inp_item{nid = 1, weight = 1.0},
+                                                            #inp_item{nid = 2, weight = 1.0},
+                                                            #inp_item{nid = 3, weight = 1.0}
+                                                           ]}.
+
+create({1, _Type} = _X, Config) -> {"NN neuron creation test", timeout, 1, fun() ->
+  ?debug_Fmt("~n::test:: neuron create: ~p ~p",[_X, Config]),
   register(test_result, self()),
 
-  {ok, Neuron_Pid} = neuron:neuron(#inp_config{type = neuron, nid = 1, bias = 0.0, input = [#inp_item{nid = 0, weight = 1.0}]}),
+  {ok, Neuron_Pid} = neuron:neuron(Config),
   neuron:connect(Neuron_Pid, [#out_item{nid = 2, pid = self()}], self()),
   neuron:signal(Neuron_Pid, 0, 1.0),
-  
+
   receive
     {_, {signal,1, _}} -> 
       ?assert(true);
-    Msg ->
-      ?debug_Fmt("::test:: Msg came: ~p",[Msg]),
-      ?assert(false)
-  end,
-%  W1 = wait_all(1),
-
-  unregister(test_result),
-%  ?assert(W1),
-  ?PASSED
-end};
-
-create({1, sensor} = _X, _Y) -> {"NN sensor creation test", timeout, 1, fun() ->
-  ?debug_Fmt("~n::test:: sensor create: ~p ~p",[_X, _Y]),
-  register(test_result, self()),
-
-  {ok, Neuron_Pid} = neuron:sensor(#inp_config{type = sensor, nid = 0}),
-  neuron:connect(Neuron_Pid, [#out_item{nid = 1, pid = self()}], self()),
-  neuron:signal(Neuron_Pid, -1, 1.0),
-
-  receive
-    {_, {signal, 0, _}} -> 
-      ?assert(true);
-    Msg ->
-      ?debug_Fmt("::test:: Msg came: ~p",[Msg]),
-      ?assert(false)
-  end,
-%  W1 = wait_all(1),
-
-  unregister(test_result),
-%  ?assert(W1),
-  ?PASSED
-end};
-
-create({1, actuator} = _X, _Y) -> {"NN sensor actuator test", timeout, 1, fun() ->
-  ?debug_Fmt("~n::test:: actuator create: ~p ~p",[_X, _Y]),
-  register(test_result, self()),
-
-  {ok, Neuron_Pid} = neuron:actuator(#inp_config{type = actuator, nid = 1, input = [#inp_item{nid = 0}]}),
-  neuron:connect(Neuron_Pid, [], self()),
-  neuron:signal(Neuron_Pid, 0, 1.0),
-
-  receive
-    {_, {actuator, 1, _}} -> 
+    {_, {actuator,1, _}} -> 
       ?assert(true);
     Msg ->
       ?debug_Fmt("::test:: Msg came: ~p",[Msg]),
@@ -120,3 +94,31 @@ create({1, actuator} = _X, _Y) -> {"NN sensor actuator test", timeout, 1, fun() 
 %  ?assert(W1),
   ?PASSED
 end}.
+
+signal({2, _Type} = _X, Config) -> {"NN neuron signal test", timeout, 1, fun() ->
+  ?debug_Fmt("~n::test:: neuron signal: ~p ~p",[_X, Config]),
+  register(test_result, self()),
+
+  {ok, Neuron_Pid} = neuron:neuron(Config),
+  neuron:connect(Neuron_Pid, [#out_item{nid = 11, pid = self()}], self()),
+  neuron:signal(Neuron_Pid, 0, 0.05),
+  neuron:signal(Neuron_Pid, 1, 0.05),
+  neuron:signal(Neuron_Pid, 2, 0.05),
+  neuron:signal(Neuron_Pid, 3, 0.05),
+
+  receive
+    {_, {signal, 10, 0.3799489622552249}} -> 
+      ?assert(true);
+    Msg ->
+      ?debug_Fmt("::test:: Msg came: ~p",[Msg]),
+      ?assert(false)
+  end,
+%  W1 = wait_all(1),
+
+  unregister(test_result),
+%  ?assert(W1),
+  ?PASSED
+end}.
+
+do_cleanup(_X, _Y) ->
+  ?debug_Fmt("::test:: teardown after: ~p  ~p",[_X, _Y]).

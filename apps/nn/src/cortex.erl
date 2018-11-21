@@ -1,4 +1,4 @@
-%% @author axk456
+%% @author alekras
 %% @doc @todo Add description to cortex.
 
 
@@ -18,12 +18,13 @@
   rollbackWeights/1,
   extractWeightsList/1, 
   send_signal_to/2, 
-  set_call_back/2
+  set_call_back/2,
+  set_scape/2
 ]).
 
-start_link(NN_ID) ->
-  Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
-  gen_server:start_link({local, Cortex_Id}, ?MODULE, [NN_ID], []).
+start_link(Cortex_Id) ->
+%%  Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
+  gen_server:start_link({local, Cortex_Id}, ?MODULE, [Cortex_Id], []).
 
 applyGenotype(Pid, Genotype) ->
   gen_server:call(Pid, {genotype, apply, Genotype}).
@@ -46,6 +47,9 @@ send_signal_to(Pid, Values) ->
 set_call_back(Pid, Callback_Fun) ->
   gen_server:call(Pid, {set_call_back, Callback_Fun}).
 
+set_scape(Pid, Scape_Pid) ->
+  gen_server:call(Pid, {set_scape, Scape_Pid}).
+
 %% ====================================================================
 %% Behavioural functions
 %% ====================================================================
@@ -65,7 +69,6 @@ set_call_back(Pid, Callback_Fun) ->
 init(NN_ID) ->
   io:format("Cortex init: Neural network Id=~p[pid=~p]~n", [NN_ID,self()]),
   {ok, #cortex_state{}}.
-
 
 %% handle_call/3
 %% ====================================================================
@@ -141,6 +144,9 @@ handle_call({set_call_back, Callback_Fun}, _From, State) ->
       {reply, error, State}
   end;
 
+handle_call({set_scape, Scape_Pid}, _From, State) ->
+  {reply, ok, State#cortex_state{scape_pid = Scape_Pid}};
+
 handle_call(_Request, _From, State) ->
   io:format(user, "unknown request comes to cortex ~p.~n", [_Request]),
   {reply, ok, State}.
@@ -181,18 +187,22 @@ process(O, Id_Pid_list, [{Nid_O, #inp_item{nid = Nid_I}} | T]) ->
 	NewState :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-handle_cast({actuator, Nid, Result}, #cortex_state{result_callback = Fun, actions = Actions, result = St_Result} = State) ->
+handle_cast({actuator, Nid, Result}, #cortex_state{result_callback = Fun, scape_pid = Scape, actions = Actions, result = St_Result} = State) ->
   io:format(user, "Cortex[~p] >> message ~128p comes from actuator[~p].~n", [self(), Result, Nid]),
   case lists:keytake(Nid, 1, Actions) of
     {value, {Nid, _}, []} ->
       New_Result = [Result | St_Result],
       New_Actions = [],
-      %% @todo send to Scape
-      Fun(New_Result);
+      %% @todo send to Scape as gen_server!
+      Scape ! New_Result,
+      if is_function(Fun) ->
+        Fun(New_Result);
+      true -> ok
+      end;
     {value, {Nid, _}, New_Actions} ->
       New_Result = [Result | St_Result];
     false ->
-      io:format("Wrong message {actuator, ~p, ~p} comes to cortex.~n", [Nid, Result]),
+      io:format(user, "Wrong message {actuator, ~p, ~p} comes to cortex.~n", [Nid, Result]),
       New_Actions = Actions,
       New_Result = St_Result
   end,
