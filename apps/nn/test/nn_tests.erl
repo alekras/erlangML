@@ -46,7 +46,8 @@ eml_test_() ->
 					fun testing:do_setup/1, 
 					fun testing:do_cleanup/2, 
 					[
-						{{1, config}, fun configure/2}
+%						{{1, config}, fun configure/2}
+            {{1, train}, fun train/2}
 					]
 			 }
 			]}
@@ -88,6 +89,23 @@ configure(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
   unregister(test_result),
   ?assert(W3 and W2 and W4),
 %%  ?assert(W2),
+  ?PASSED
+end}.
+
+train(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
+  register(test_result, self()),
+
+  ?debug_Fmt("~n::test:: train: ~p ~p",[_X, _Y]),
+  cortex_sup:new_nn(cortex_sup, 1),
+  cortex:applyGenotype(cortex_1, configuration(0)),
+  Fun1 = fun(R) -> ?debug_Fmt("::test:: RESULT[1]: ~128p.", [R]), test_result ! done end,
+  cortex:set_call_back(cortex_1, Fun1),
+
+  nn_trainer:run_step(cortex_1, [{0, 2}, {6, 1}]),
+%  cortex:send_signal_to(cortex_1, [{0, 2}, {6, 1}]),
+  W1 = wait_all(9),
+  unregister(test_result),
+  ?assert(W1),
   ?PASSED
 end}.
 
