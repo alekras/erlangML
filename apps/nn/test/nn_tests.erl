@@ -97,13 +97,14 @@ train(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
 
   ?debug_Fmt("~n::test:: train: ~p ~p",[_X, _Y]),
   cortex_sup:new_nn(cortex_sup, 1),
-  cortex:applyGenotype(cortex_1, configuration(0)),
+  cortex:applyGenotype(cortex_1, configuration(1)),
   Fun1 = fun(R) -> ?debug_Fmt("::test:: RESULT[1]: ~128p.", [R]), test_result ! done end,
   cortex:set_call_back(cortex_1, Fun1),
 
-  nn_trainer:run_step(cortex_1, [{0, 2}, {6, 1}]),
-%  cortex:send_signal_to(cortex_1, [{0, 2}, {6, 1}]),
-  W1 = wait_all(9),
+  nn_trainer:run_step(cortex_1, [{0, 2.0}, {1, 1.0}]),
+%  cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
+%  cortex:send_signal_to(cortex_1, [{0, 2.0}, {6, 1.0}]),
+  W1 = wait_all(13),
   unregister(test_result),
   ?assert(W1),
   ?PASSED

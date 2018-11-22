@@ -123,7 +123,7 @@ handle_call({genotype, extract}, _From, #cortex_state{sensors = Sensors, neurons
 
 handle_call(extract_weights, _From, #cortex_state{neurons = Neurons} = State) ->
   WT = [neuron:extract_weights(Pid) || {_Nid, Pid} <- Neurons],
-%%  io:format(user, "~nExtract weight list= ~128p.~n", [WT]),
+%  io:format(user, "~nExtract weight list= ~128p.~n", [WT]),
   {reply, WT, State};
 
 handle_call({update_weights, List}, _From, #cortex_state{neurons = Neurons_nid_pidS} = State) ->
@@ -194,7 +194,10 @@ handle_cast({actuator, Nid, Result}, #cortex_state{result_callback = Fun, scape_
       New_Result = [Result | St_Result],
       New_Actions = [],
       %% @todo send to Scape as gen_server!
-      Scape ! New_Result,
+      if is_pid(Scape) ->
+        Scape ! New_Result;
+      true -> ok
+      end,
       if is_function(Fun) ->
         Fun(New_Result);
       true -> ok
