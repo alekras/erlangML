@@ -20,7 +20,7 @@ run_step(Cortex_Id, Sensor_Signals) ->
       cortex:updateWeights(Cortex_Id, [{Nid, incNth(N, 0.1, WL)}]),
       cortex:send_signal_to(Cortex_Id, Sensor_Signals),
       receive
-        Res -> io:format(user, "~nResult :: ~p.~n", [Res])
+        Res when is_list(Res) -> io:format(user, "~nResult :: ~p.~n", [Res])
       end
     end || N <- lists:seq(0, length(WL)-1)] || {Nid, WL, _Bias} <- cortex:extractWeightsList(Cortex_Id)].
 
