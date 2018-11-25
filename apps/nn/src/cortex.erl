@@ -1,4 +1,4 @@
-%% @author axk456
+%% @author alekras
 %% @doc @todo Add description to cortex.
 
 
@@ -10,11 +10,21 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([start_link/1, applyGenotype/2, extractGenotype/1, updateWeights/2, send_signal_to/2, set_call_back/2]).
+-export([
+  start_link/1, 
+  applyGenotype/2, 
+  extractGenotype/1, 
+  updateWeights/2,
+  rollbackWeights/1,
+  extractWeightsList/1, 
+  send_signal_to/2, 
+  set_call_back/2,
+  set_scape/2
+]).
 
-start_link(NN_ID) ->
-  Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
-  gen_server:start_link({local, Cortex_Id}, ?MODULE, [NN_ID], []).
+start_link(Cortex_Id) ->
+%%  Cortex_Id = list_to_atom(lists:concat(["cortex_", NN_ID])),
+  gen_server:start_link({local, Cortex_Id}, ?MODULE, [Cortex_Id], []).
 
 applyGenotype(Pid, Genotype) ->
   gen_server:call(Pid, {genotype, apply, Genotype}).
@@ -23,13 +33,22 @@ extractGenotype(Pid) ->
   gen_server:call(Pid, {genotype, extract}).
 
 updateWeights(Pid, List) ->
-  gen_server:call(Pid, {update, List}).
+  gen_server:call(Pid, {update_weights, List}).
+
+rollbackWeights(Pid) ->
+  gen_server:call(Pid, rollback_weights).
+
+extractWeightsList(Pid) ->
+  gen_server:call(Pid, extract_weights).
 
 send_signal_to(Pid, Values) ->
   gen_server:cast(Pid, {signal, Values}).
 
 set_call_back(Pid, Callback_Fun) ->
   gen_server:call(Pid, {set_call_back, Callback_Fun}).
+
+set_scape(Pid, Scape_Pid) ->
+  gen_server:call(Pid, {set_scape, Scape_Pid}).
 
 %% ====================================================================
 %% Behavioural functions
@@ -51,7 +70,6 @@ init(NN_ID) ->
   io:format("Cortex init: Neural network Id=~p[pid=~p]~n", [NN_ID,self()]),
   {ok, #cortex_state{}}.
 
-
 %% handle_call/3
 %% ====================================================================
 %% @doc <a href="http://www.erlang.org/doc/man/gen_server.html#Module:handle_call-3">gen_server:handle_call/3</a>
@@ -70,7 +88,7 @@ init(NN_ID) ->
 	Reason :: term().
 %% ====================================================================
 handle_call({genotype, apply, Genotype}, _From, State) ->
-  io:format(user, "~nGenotype ~p.~n[Pid=~p]~n", [Genotype,self()]),
+%%  io:format(user, "~nGenotype ~p.~n[Pid=~p]~n", [Genotype,self()]),
   Sup_curr_Pid = State#cortex_state.neuron_supervisor,
   Is_Alive = is_pid(Sup_curr_Pid) andalso is_process_alive(Sup_curr_Pid),
   if
@@ -83,8 +101,7 @@ handle_call({genotype, apply, Genotype}, _From, State) ->
       io:format(user, "Neuron supervisor is not running.~n", []),
       {ok, Sup_Pid} = supervisor:start_link(neuron_sup, [])
   end,
-  Neuron_Child_Spec = [{NId, {neuron, Type, [Config]}, permanent, 2000, worker, [neuron]} || #inp_config{type = Type, nid = NId} = Config <- Genotype],
-  Ch_Id_Pids =[{Ch_NId, Ch_Pid} || {Ch_NId, {ok, Ch_Pid}} <- [{NId, supervisor:start_child(Sup_Pid, Ch_Spec)} || {NId, _, _, _, _, _} = Ch_Spec <- Neuron_Child_Spec]],
+  Ch_Id_Pids = neuron_sup:build_nn(Genotype, Sup_Pid),
   configure(Ch_Id_Pids, Genotype),
   Sensors_Pids = [{NId, proplists:get_value(NId, Ch_Id_Pids)} || #inp_config{type = Type, nid = NId} <- Genotype, Type =:= sensor],
   Neurons_Pids = [{NId, proplists:get_value(NId, Ch_Id_Pids)} || #inp_config{type = Type, nid = NId} <- Genotype, Type =:= neuron],
@@ -98,15 +115,25 @@ handle_call({genotype, apply, Genotype}, _From, State) ->
 
 handle_call({genotype, extract}, _From, #cortex_state{sensors = Sensors, neurons = Neurons, actuators = Actuators} = State) ->
   io:format(user, "~nExtract genotype.~n", []),
-  GT0 = [ neuron:extract_genom(Pid) || {Nid, Pid} <- Sensors],
-  GT1 = [ neuron:extract_genom(Pid) || {Nid, Pid} <- Neurons],
-  GT2 = [ neuron:extract_genom(Pid) || {Nid, Pid} <- Actuators],
+  GT0 = [neuron:extract_genom(Pid) || {_Nid, Pid} <- Sensors],
+  GT1 = [neuron:extract_genom(Pid) || {_Nid, Pid} <- Neurons],
+  GT2 = [neuron:extract_genom(Pid) || {_Nid, Pid} <- Actuators],
   GT = GT0 ++ GT1 ++ GT2,
   {reply, GT, State#cortex_state{genotype = GT}};
 
-handle_call({update, List}, _From, #cortex_state{neurons = Neurons_nid_pidS} = State) ->
-  io:format(user, ">>> update ~128p  ~128p.~n", [List, Neurons_nid_pidS]),
-  [neuron:update_weight(proplists:get_value(Nid, Neurons_nid_pidS), L) || {Nid, L} <- List],
+handle_call(extract_weights, _From, #cortex_state{neurons = Neurons} = State) ->
+  WT = [neuron:extract_weights(Pid) || {_Nid, Pid} <- Neurons],
+%  io:format(user, "~nExtract weight list= ~128p.~n", [WT]),
+  {reply, WT, State};
+
+handle_call({update_weights, List}, _From, #cortex_state{neurons = Neurons_nid_pidS} = State) ->
+%%  io:format(user, ">>> update ~128p  ~128p.~n", [List, Neurons_nid_pidS]),
+  [neuron:update_weights(proplists:get_value(Nid, Neurons_nid_pidS), L) || {Nid, L} <- List],
+  {reply, ok, State};
+
+handle_call(rollback, _From, #cortex_state{neurons = Neurons} = State) ->
+%%  io:format(user, ">>> update ~128p  ~128p.~n", [List, Neurons_nid_pidS]),
+  [neuron:rollback_weights(Pid) || {_Nid, Pid} <- Neurons],
   {reply, ok, State};
 
 handle_call({set_call_back, Callback_Fun}, _From, State) ->
@@ -116,6 +143,9 @@ handle_call({set_call_back, Callback_Fun}, _From, State) ->
     true ->
       {reply, error, State}
   end;
+
+handle_call({set_scape, Scape_Pid}, _From, State) ->
+  {reply, ok, State#cortex_state{scape_pid = Scape_Pid}};
 
 handle_call(_Request, _From, State) ->
   io:format(user, "unknown request comes to cortex ~p.~n", [_Request]),
@@ -130,7 +160,8 @@ configure(Ch_Pids, Genotype) ->
 %  io:format(user, "Temp: ~128p ~n", [Temp]),
   Comp_output = process(Comp_output_temp, Ch_Pids, Temp),
 %  io:format(user, "Comp_output: ~128p ~n", [Comp_output]),
-  [neuron:connect(Pid, OutList, self()) || #out_config{pid = Pid, output = OutList} <- Comp_output].
+%  [neuron:connect(Pid, OutList, self()) || #out_config{pid = Pid, output = OutList} <- Comp_output].
+  neuron_sup:connect_nn(Comp_output, self()).
 
 process(O, _, []) -> O;
 process(O, Id_Pid_list, [{Nid_O, #inp_item{nid = Nid_I}} | T]) ->
@@ -156,30 +187,37 @@ process(O, Id_Pid_list, [{Nid_O, #inp_item{nid = Nid_I}} | T]) ->
 	NewState :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-handle_cast({actuator, Nid, Result}, #cortex_state{result_callback = Fun, actions = Actions, result = St_Result} = State) ->
+handle_cast({actuator, Nid, Result}, #cortex_state{result_callback = Fun, scape_pid = Scape, actions = Actions, result = St_Result} = State) ->
   io:format(user, "Cortex[~p] >> message ~128p comes from actuator[~p].~n", [self(), Result, Nid]),
   case lists:keytake(Nid, 1, Actions) of
     {value, {Nid, _}, []} ->
-      New_result = [Result | St_Result],
+      New_Result = [Result | St_Result],
       New_Actions = [],
-      Fun(New_result);
+      %% @todo send to Scape as gen_server!
+      if is_pid(Scape) ->
+        Scape ! New_Result;
+      true -> ok
+      end,
+      if is_function(Fun) ->
+        Fun(New_Result);
+      true -> ok
+      end;
     {value, {Nid, _}, New_Actions} ->
-      New_result = [Result | St_Result];
+      New_Result = [Result | St_Result];
     false ->
-      io:format("Wrong message {actuator, ~p, ~p} comes to cortex.~n", [Nid, Result]),
+      io:format(user, "Wrong message {actuator, ~p, ~p} comes to cortex.~n", [Nid, Result]),
       New_Actions = Actions,
-      New_result = St_Result
+      New_Result = St_Result
   end,
-  {noreply, State#cortex_state{actions = New_Actions, result = New_result}};
+  {noreply, State#cortex_state{actions = New_Actions, result = New_Result}};
 
 handle_cast({signal, Values}, State) ->
-  io:format(user, "signal comes to cortex ~p.~n    Sensors are ~128p.~n", [Values, State#cortex_state.sensors]),
+%%  io:format(user, "signal comes to cortex ~p.~n    Sensors are ~128p.~n", [Values, State#cortex_state.sensors]),
   [neuron:signal(Pid, -1, proplists:get_value(N, Values, 0.0)) || {N, Pid} <- State#cortex_state.sensors],
   {noreply, State#cortex_state{actions = State#cortex_state.actuators, result = []}};
 
 handle_cast(_Msg, State) ->
   {noreply, State}.
-
 
 %% handle_info/2
 %% ====================================================================
@@ -197,7 +235,6 @@ handle_info(_Info, State) ->
   io:format(user, "unknown request comes to cortex ~p.~n", [_Info]),
   {noreply, State}.
 
-
 %% terminate/2
 %% ====================================================================
 %% @doc <a href="http://www.erlang.org/doc/man/gen_server.html#Module:terminate-2">gen_server:terminate/2</a>
@@ -208,7 +245,7 @@ handle_info(_Info, State) ->
 			| term().
 %% ====================================================================
 terminate(_Reason, _State) ->
-    ok.
+  ok.
 
 
 %% code_change/3
