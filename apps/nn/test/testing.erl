@@ -30,26 +30,28 @@
 %% API functions
 %%
 -export([
-	do_setup/1, 
-	do_cleanup/2, 
-	do_start/0, 
-	do_stop/1,
-	wait_all/1]).
+  do_setup/1, 
+  do_cleanup/2, 
+  do_start/0, 
+  do_stop/1,
+  wait_all/1
+]).
 
 do_start() ->
   R = application:start(nn),
-	?assertEqual(ok, R).
+  ?assertEqual(ok, R).
 
 do_stop(_R) ->
   R = application:stop(nn),
-	?assertEqual(ok, R).
+  ?assertEqual(ok, R).
 
 do_setup(_X) ->
-  ?debug_Fmt("~n::test:: setup before: ~p",[_X]),
-	[].
+%  ?debug_Fmt("~n::test:: setup before: ~p",[_X]),
+  [].
 
 do_cleanup(_X, _Y) ->
-  ?debug_Fmt("::test:: teardown after: ~p  ~p",[_X, _Y]).
+%  ?debug_Fmt("::test:: teardown after: ~p  ~p",[_X, _Y])
+  [].
 
 wait_all(N) ->
 	case wait_all(N, 0) of

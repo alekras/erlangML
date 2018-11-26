@@ -67,7 +67,7 @@ set_scape(Pid, Scape_Pid) ->
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
 init(NN_ID) ->
-  io:format("Cortex init: Neural network Id=~p[pid=~p]~n", [NN_ID,self()]),
+%  io:format("Cortex init: Neural network Id=~p[pid=~p]~n", [NN_ID,self()]),
   {ok, #cortex_state{}}.
 
 %% handle_call/3
@@ -93,12 +93,12 @@ handle_call({genotype, apply, Genotype}, _From, State) ->
   Is_Alive = is_pid(Sup_curr_Pid) andalso is_process_alive(Sup_curr_Pid),
   if
     Is_Alive ->
-      io:format(user, "Neuron supervisor is alive.~n", []),
+%      io:format(user, "Neuron supervisor is alive.~n", []),
       Sup_Pid = Sup_curr_Pid,
       [begin supervisor:terminate_child(Sup_curr_Pid, Id), supervisor:delete_child(Sup_curr_Pid, Id) end 
         || {Id, _Pid, _, _} <- supervisor:which_children(Sup_curr_Pid)];
     true ->
-      io:format(user, "Neuron supervisor is not running.~n", []),
+%      io:format(user, "Neuron supervisor is not running.~n", []),
       {ok, Sup_Pid} = supervisor:start_link(neuron_sup, [])
   end,
   Ch_Id_Pids = neuron_sup:build_nn(Genotype, Sup_Pid),
@@ -131,7 +131,7 @@ handle_call({update_weights, List}, _From, #cortex_state{neurons = Neurons_nid_p
   [neuron:update_weights(proplists:get_value(Nid, Neurons_nid_pidS), L) || {Nid, L} <- List],
   {reply, ok, State};
 
-handle_call(rollback, _From, #cortex_state{neurons = Neurons} = State) ->
+handle_call(rollback_weights, _From, #cortex_state{neurons = Neurons} = State) ->
 %%  io:format(user, ">>> update ~128p  ~128p.~n", [List, Neurons_nid_pidS]),
   [neuron:rollback_weights(Pid) || {_Nid, Pid} <- Neurons],
   {reply, ok, State};
@@ -188,7 +188,7 @@ process(O, Id_Pid_list, [{Nid_O, #inp_item{nid = Nid_I}} | T]) ->
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
 handle_cast({actuator, Nid, Result}, #cortex_state{result_callback = Fun, scape_pid = Scape, actions = Actions, result = St_Result} = State) ->
-  io:format(user, "Cortex[~p] >> message ~128p comes from actuator[~p].~n", [self(), Result, Nid]),
+%  io:format(user, "Cortex[~p] >> message ~128p comes from actuator[~p].~n", [self(), Result, Nid]),
   case lists:keytake(Nid, 1, Actions) of
     {value, {Nid, _}, []} ->
       New_Result = [Result | St_Result],
@@ -257,7 +257,7 @@ terminate(_Reason, _State) ->
 	Vsn :: term().
 %% ====================================================================
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+  {ok, State}.
 
 
 %% ====================================================================

@@ -10,18 +10,24 @@
 %% API functions
 %% ====================================================================
 -export([
-  run_step/2,
+  run_step/4,
   incNth/3
 ]).
 
-run_step(Cortex_Id, Sensor_Signals) ->
+run_step(Cortex_Id, Sensor_Signals, Goal, Delta) ->
   cortex:set_scape(Cortex_Id, self()),
   [[begin 
-      cortex:updateWeights(Cortex_Id, [{Nid, incNth(N, 0.1, WL)}]),
+      cortex:updateWeights(Cortex_Id, [{Nid, incNth(N, Delta, WL)}]),
       cortex:send_signal_to(Cortex_Id, Sensor_Signals),
+      R1 =
       receive
-        Res when is_list(Res) -> io:format(user, "~nResult :: ~p.~n", [Res])
-      end
+        Res when is_list(Res) ->
+          R = lists:sum(lists:flatten(Res)),
+          io:format(user, "Result :: ~128p.~n", [R]),
+          R
+      end,
+      cortex:rollbackWeights(Cortex_Id),
+      {Nid, N, R - Goal}
     end || N <- lists:seq(0, length(WL)-1)] || {Nid, WL, _Bias} <- cortex:extractWeightsList(Cortex_Id)].
 
 incNth(N, Dlt, List) ->

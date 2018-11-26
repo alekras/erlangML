@@ -93,15 +93,20 @@ configure(_X, _Y) -> {"NN configuration test", timeout, 15, fun() ->
 end}.
 
 train(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
+%  ?debug_Fmt("~n::test:: train: ~p ~p",[_X, _Y]),
   register(test_result, self()),
 
-  ?debug_Fmt("~n::test:: train: ~p ~p",[_X, _Y]),
   cortex_sup:new_nn(cortex_sup, 1),
   cortex:applyGenotype(cortex_1, configuration(1)),
-  Fun1 = fun(R) -> ?debug_Fmt("::test:: RESULT[1]: ~128p.", [R]), test_result ! done end,
+  Fun1 = 
+    fun(R) -> 
+%      ?debug_Fmt("::test:: RESULT[1]: ~128p.", [R]), 
+      test_result ! done 
+    end,
   cortex:set_call_back(cortex_1, Fun1),
 
-  nn_trainer:run_step(cortex_1, [{0, 2.0}, {1, 1.0}]),
+  LR = nn_trainer:run_step(cortex_1, [{0, 0.4}, {1, 0.7}], 2.0, 0.2),
+  ?debug_Fmt("Train Result: ~128p.", [LR]),
 %  cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
 %  cortex:send_signal_to(cortex_1, [{0, 2.0}, {6, 1.0}]),
   W1 = wait_all(13),
@@ -110,8 +115,7 @@ train(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
   ?PASSED
 end}.
 
-configuration(0) ->
-  [
+configuration(0) -> [
     #inp_config{type = sensor, nid = 0, input = []},
     #inp_config{type = sensor, nid = 6, input = []},
     #inp_config{type = neuron, nid = 1, input = [#inp_item{nid = 0, weight = 1.2}],
@@ -133,32 +137,32 @@ configuration(0) ->
                                                    #inp_item{nid = 3},
                                                    #inp_item{nid = 4}
                                                   ]}
-  ];
+];
 configuration(1) ->
   [
     #inp_config{type = sensor, nid = 0, input = []},
     #inp_config{type = sensor, nid = 1, input = []},
     #inp_config{type = neuron, nid = 2, input = [#inp_item{nid = 0, weight = 0.5}],
-                bias = 0.5},
+                bias = 0.1},
     #inp_config{type = neuron, nid = 3, input = [#inp_item{nid = 0, weight = 1.5},
                                                  #inp_item{nid = 1, weight = 0.5}],
-                bias = 0.4},
+                bias = 0.02},
     #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 1, weight = 0.9}],
-                bias = 0.5},
+                bias = 0.15},
     #inp_config{type = neuron, nid = 5, input = [#inp_item{nid = 2, weight = 1.2},
                                                  #inp_item{nid = 3, weight = 0.9},
                                                  #inp_item{nid = 4, weight = 0.5},
                                                  #inp_item{nid = 6, weight = 0.5}
                                                 ],
-                bias = 0.5},
+                bias = 0.12},
     #inp_config{type = neuron, nid = 6, input = [#inp_item{nid = 3, weight = 1.5},
                                                  #inp_item{nid = 4, weight = 0.5}],
-                bias = 0.4},
+                bias = 0.214},
     #inp_config{type = neuron, nid = 7, input = [#inp_item{nid = 3, weight = 1.5},
-                                                 #inp_item{nid = 5, weight = 0.5},
+                                                 #inp_item{nid = 5, weight = -0.5},
                                                  #inp_item{nid = 6, weight = 0.5}
                                                 ],
-                bias = 0.4},
+                bias = 0.145},
     #inp_config{type = actuator, nid = 8, input = [#inp_item{nid = 2},
                                                    #inp_item{nid = 7}
                                                   ]},

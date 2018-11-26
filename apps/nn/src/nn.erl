@@ -4,7 +4,11 @@
 
 -module(nn).
 -behaviour(application).
--export([start/2, stop/1, env/0]).
+-export([
+   start/2
+  ,stop/1
+%%  ,env/0
+]).
 
 %% ====================================================================
 %% API functions
@@ -26,7 +30,7 @@
 	| {error, Reason :: term()}.
 %% ====================================================================
 start(Type, StartArgs) ->
-  io:format(user, "Application started. Type=~p Start Args=~p~n", [Type, StartArgs]),
+%%  io:format(user, "Application started. Type=~p Start Args=~p~n", [Type, StartArgs]),
   case cortex_sup:start_link() of
     {ok, Pid} ->
       {ok, Pid};
@@ -34,8 +38,8 @@ start(Type, StartArgs) ->
       Error
   end.
 
-env() ->
-  loop().
+%% env() ->
+%%   loop().
 %% stop/1
 %% ====================================================================
 %% @doc <a href="http://www.erlang.org/doc/apps/kernel/application.html#Module:stop-1">application:stop/1</a>
@@ -47,18 +51,18 @@ stop(_State) ->
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
-loop() ->
+%%loop() ->
 %%   R0 = application:stop(eml),
 %%   io:format(user, "After app stop.   R0=~p~n", [R0]),
-  R1 = application:unload(dynconf),
-  io:format(user, "After app unload. R1=~p~n", [R1]),
-  R2 = application:load(dynconf),
-  io:format(user, "After app load.   R2=~p~n", [R2]),
+%%   R1 = application:unload(dynconf),
+%%   io:format(user, "After app unload. R1=~p~n", [R1]),
+%%   R2 = application:load(dynconf),
+%%   io:format(user, "After app load.   R2=~p~n", [R2]),
 %%   R3 = application:start(eml),
 %%   io:format(user, "After app start.  R3=~p~n", [R3]),
-  Test = application:get_env(dynconf, test),
-  io:format(user, "After config changed. Test=~p~n~n", [Test]),
-  timer:sleep(2000),
-  loop().
+%%   Test = application:get_env(dynconf, test),
+%%   io:format(user, "After config changed. Test=~p~n~n", [Test]),
+%%   timer:sleep(2000),
+%%   loop().
 
 

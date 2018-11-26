@@ -135,7 +135,7 @@ update([Inp_Item | L1], [New_W | L2], L3) ->
   Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
 handle_cast({connect, OutList, Cortex_Id}, #state{} = State) ->
-  io:format("Connect: nid=~p type=~p ~128p ~n", [State#state.nid, State#state.component_type, OutList]),
+%  io:format("Connect: nid=~p type=~p ~128p ~n", [State#state.nid, State#state.component_type, OutList]),
   {noreply, State#state{output = OutList, cortes_pid = Cortex_Id}};
 
 handle_cast({signal, _CallerNid, Input}, #state{component_type = sensor} = State) ->
@@ -161,7 +161,7 @@ handle_cast({signal, CallerNid, Input}, #state{component_type = neuron, accum = 
   {noreply, State#state{accum = New_accum, signals = New_signals}};
 
 handle_cast({signal, CallerNid, Input}, #state{nid = Nid, component_type = actuator, accum = Accum, signals = Signals} = State) ->
-  io:format(user, "Actuator[~p] >>> signal {~p, ~p}. list= ~p.~n", [State#state.nid, CallerNid, Input, Signals]),
+%  io:format(user, "Actuator[~p] >>> signal {~p, ~p}. list= ~p.~n", [State#state.nid, CallerNid, Input, Signals]),
   case lists:keytake(CallerNid, #inp_item.nid, Signals) of
     {value, #inp_item{nid = CallerNid}, []} ->
       Final_accum = [Input | Accum],
