@@ -47,7 +47,7 @@ init([]) ->
 
 new_nn(Sup_Pid, N) ->
   Cortex_Id = list_to_atom(lists:concat(["cortex_", N])),
-  io:format(user, "cortex_sup new: ~p ~p ~n", [Cortex_Id, N]),
+%  io:format(user, "cortex_sup new: ~p ~p ~n", [Cortex_Id, N]),
   Ch_Spec = {Cortex_Id, {cortex, start_link, [Cortex_Id]}, permanent, 2000, worker, [cortex]},
   supervisor:start_child(Sup_Pid, Ch_Spec).
 

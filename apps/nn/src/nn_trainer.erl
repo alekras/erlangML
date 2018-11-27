@@ -1,7 +1,6 @@
 %% @author alekras
 %% @doc @todo Add description to nn_trainer.
 
-
 -module(nn_trainer).
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -11,24 +10,50 @@
 %% ====================================================================
 -export([
   run_step/4,
+  run_loop/5,
   incNth/3
 ]).
 
+run_loop(_Cortex_Id, _Sensor_Signals, _Goal, _Delta, 0) -> stop;
+run_loop(Cortex_Id, Sensor_Signals, Goal, Delta, N) ->
+  B = run_step(Cortex_Id, Sensor_Signals, Goal, Delta),
+  io:format(user, "Step[~p] ~p.", [N, B]),
+  io:format(user, "Weights after Train: ~128p.", [cortex:extractWeightsList(cortex_1)]),
+  run_loop(Cortex_Id, Sensor_Signals, Goal, Delta, N - 1).
+
 run_step(Cortex_Id, Sensor_Signals, Goal, Delta) ->
   cortex:set_scape(Cortex_Id, self()),
+  LT =
   [[begin 
       cortex:updateWeights(Cortex_Id, [{Nid, incNth(N, Delta, WL)}]),
       cortex:send_signal_to(Cortex_Id, Sensor_Signals),
       R1 =
       receive
-        Res when is_list(Res) ->
-          R = lists:sum(lists:flatten(Res)),
-          io:format(user, "Result :: ~128p.~n", [R]),
-          R
+        Res1 when is_list(Res1) ->
+          lists:sum(lists:flatten(Res1))
       end,
       cortex:rollbackWeights(Cortex_Id),
-      {Nid, N, R - Goal}
-    end || N <- lists:seq(0, length(WL)-1)] || {Nid, WL, _Bias} <- cortex:extractWeightsList(Cortex_Id)].
+      cortex:updateWeights(Cortex_Id, [{Nid, incNth(N, -Delta, WL)}]),
+      cortex:send_signal_to(Cortex_Id, Sensor_Signals),
+      R2 =
+      receive
+        Res2 when is_list(Res2) ->
+          lists:sum(lists:flatten(Res2))
+      end,
+      cortex:rollbackWeights(Cortex_Id),
+      R3 = abs(R1 - Goal),
+      R4 = abs(R2 - Goal),
+      io:format(user, "~nReceived results:= ~p, ~p.", [R3, R4]),
+      if R3 > R4 ->
+        {Nid, N, -1, R4};
+      true ->
+        {Nid, N, 1, R3}
+      end
+    end || N <- lists:seq(0, length(WL)-1)] || {Nid, WL, _Bias} <- cortex:extractWeightsList(Cortex_Id)],
+  io:format(user, "~nLT := ~128p.~n", [LT]),
+  [{NeuId, Nw, Mult, _} = P |_] = lists:sort(fun({_, _, _, Va}, {_, _, _, Vb}) -> if (Va > Vb) -> false; true -> true end end, lists:flatten(LT)),
+  [cortex:updateWeights(Cortex_Id, [{Nid, incNth(Nw, Mult * Delta, WL)}]) || {Nid, WL, _Bias} <- cortex:extractWeightsList(Cortex_Id), NeuId == Nid],
+  P.
 
 incNth(N, Dlt, List) ->
   incNth(N, Dlt, List, []).

@@ -72,7 +72,7 @@ do_setup({2, signal}) ->
                                                            ]}.
 
 create({1, _Type} = _X, Config) -> {"NN neuron creation test", timeout, 1, fun() ->
-  ?debug_Fmt("~n::test:: neuron create: ~p ~p",[_X, Config]),
+%  ?debug_Fmt("~n::test:: neuron create: ~p ~p",[_X, Config]),
   register(test_result, self()),
 
   {ok, Neuron_Pid} = neuron:neuron(Config),
@@ -96,7 +96,7 @@ create({1, _Type} = _X, Config) -> {"NN neuron creation test", timeout, 1, fun()
 end}.
 
 signal({2, _Type} = _X, Config) -> {"NN neuron signal test", timeout, 1, fun() ->
-  ?debug_Fmt("~n::test:: neuron signal: ~p ~p",[_X, Config]),
+%  ?debug_Fmt("~n::test:: neuron signal: ~p ~p",[_X, Config]),
   register(test_result, self()),
 
   {ok, Neuron_Pid} = neuron:neuron(Config),
@@ -121,4 +121,5 @@ signal({2, _Type} = _X, Config) -> {"NN neuron signal test", timeout, 1, fun() -
 end}.
 
 do_cleanup(_X, _Y) ->
-  ?debug_Fmt("::test:: teardown after: ~p  ~p",[_X, _Y]).
+%  ?debug_Fmt("::test:: teardown after: ~p  ~p",[_X, _Y]),
+  ok.
