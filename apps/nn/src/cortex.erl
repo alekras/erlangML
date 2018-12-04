@@ -17,6 +17,7 @@
   updateWeights/2,
   rollbackWeights/2,
   extractWeightsList/1, 
+  extractWeightsList/2, 
   send_signal_to/2, 
   set_call_back/2,
   set_scape/2
@@ -40,6 +41,9 @@ rollbackWeights(Pid, Nid) ->
 
 extractWeightsList(Pid) ->
   gen_server:call(Pid, extract_weights).
+
+extractWeightsList(Pid, Nid) ->
+  gen_server:call(Pid, {extract_weights, Nid}).
 
 send_signal_to(Pid, Values) ->
   gen_server:cast(Pid, {signal, Values}).
@@ -66,7 +70,7 @@ set_scape(Pid, Scape_Pid) ->
 	State :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-init(NN_ID) ->
+init(_NN_ID) ->
 %  io:format("Cortex init: Neural network Id=~p[pid=~p]~n", [NN_ID,self()]),
   {ok, #cortex_state{}}.
 
@@ -123,6 +127,11 @@ handle_call({genotype, extract}, _From, #cortex_state{sensors = Sensors, neurons
 
 handle_call(extract_weights, _From, #cortex_state{neurons = Neurons} = State) ->
   WT = [neuron:extract_weights(Pid) || {_Nid, Pid} <- Neurons],
+%  io:format(user, "~nExtract weight list= ~128p.~n", [WT]),
+  {reply, WT, State};
+
+handle_call({extract_weights, Nid}, _From, #cortex_state{neurons = Neurons} = State) ->
+  WT = neuron:extract_weights(proplists:get_value(Nid, Neurons)),
 %  io:format(user, "~nExtract weight list= ~128p.~n", [WT]),
   {reply, WT, State};
 
