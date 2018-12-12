@@ -36,7 +36,8 @@ extractGenotype(Pid) ->
 updateWeights(Pid, List) ->
   gen_server:call(Pid, {update_weights, List}).
 
-rollbackWeights(Pid, Nid) ->
+%% 
+rollbackWeights(Pid, Nid) -> %% depricated
   gen_server:call(Pid, {rollback_weights, Nid}).
 
 extractWeightsList(Pid) ->
@@ -137,7 +138,7 @@ handle_call({extract_weights, Nid}, _From, #cortex_state{neurons = Neurons} = St
 
 handle_call({update_weights, List}, _From, #cortex_state{neurons = Neurons_nid_pidS} = State) ->
 %%  io:format(user, ">>> update ~128p  ~128p.~n", [List, Neurons_nid_pidS]),
-  [neuron:update_weights(proplists:get_value(Nid, Neurons_nid_pidS), L) || {Nid, L} <- List],
+  [neuron:update_weights(proplists:get_value(Nid, Neurons_nid_pidS), WeightList, Bias) || {Nid, WeightList, Bias} <- List],
   {reply, ok, State};
 
 handle_call({rollback_weights, Nid}, _From, #cortex_state{neurons = Neurons} = State) ->

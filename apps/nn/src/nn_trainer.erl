@@ -60,41 +60,42 @@ external_impact(Cortex_Id, [{Sensor_Signals, Goal} | Impact], Error) ->
 run_step(Cortex_Id, Impacts, Deltas) ->
   cortex:set_scape(Cortex_Id, self()),
   LT =
-  [[begin
+  [[case N of
+      -1 ->
       LD =
       [begin
-         cortex:updateWeights(Cortex_Id, [{Nid, incNth(N, D, WL)}]),
-         Err1 = external_impact(Cortex_Id, Impacts, 0),
+         cortex:updateWeights(Cortex_Id, [{Nid, WL, Bias + 0.1 * D}]),
+         Err = external_impact(Cortex_Id, Impacts, 0),
 %         io:format(user, "    Impact Step: NID=~p, Delta=~p, Error=~p, WL=~128p.~n", [Nid, D, Err1, cortex:extractWeightsList(Cortex_Id, Nid)]),
-         {Nid, N, D, Err1}
+         {Nid, N, D, Err}
        end || D <- Deltas],
-%%       cortex:updateWeights(Cortex_Id, [{Nid, incNth(N, Delta, WL)}]),
-%%       Err1 = external_impact(Cortex_Id, Impacts, 0),
-%%      io:format(user, "    Impact Step: NID=~p, Delta=~p, Error=~p, WL=~128p.~n", [Nid, Delta, Err1, cortex:extractWeightsList(Cortex_Id, Nid)]),
-%%       cortex:rollbackWeights(Cortex_Id, Nid),
-
-%%       cortex:updateWeights(Cortex_Id, [{Nid, incNth(N, -Delta, WL)}]),
-%%       Err2 = external_impact(Cortex_Id, Impacts, 0),
-%%      io:format(user, "    Impact Step: NID=~p, Delta=~p, Error=~p, WL=~128p.~n", [Nid, -Delta, Err2, cortex:extractWeightsList(Cortex_Id, Nid)]),
-%%      cortex:rollbackWeights(Cortex_Id, Nid),
-
-%      io:format(user, "~nReceived results:= ~p, ~p.", [R3, R4]),
-      cortex:updateWeights(Cortex_Id, [{Nid, WL}]),
+      cortex:updateWeights(Cortex_Id, [{Nid, WL, Bias}]),
       Choice = lists:sort(fun({_, _, _, Va}, {_, _, _, Vb}) -> (Va < Vb) end, LD),
-%%      if Err1 > Err2 ->
-%%        {Nid, N, -Delta, Err2};
-%%      true ->
-%%        {Nid, N, Delta, Err1}
-%%      end,
+%%      io:format(user, "    Impact Step: {NID, N, Delta, Error} =~256p, WL=~256p.~n", [Choice, cortex:extractWeightsList(Cortex_Id, Nid)]),
+      hd(Choice);
+      _  ->
+      LD =
+      [begin
+         cortex:updateWeights(Cortex_Id, [{Nid, incNth(N, D, WL), Bias}]),
+         Err = external_impact(Cortex_Id, Impacts, 0),
+%         io:format(user, "    Impact Step: NID=~p, Delta=~p, Error=~p, WL=~128p.~n", [Nid, D, Err1, cortex:extractWeightsList(Cortex_Id, Nid)]),
+         {Nid, N, D, Err}
+       end || D <- Deltas],
+      cortex:updateWeights(Cortex_Id, [{Nid, WL, Bias}]),
+      Choice = lists:sort(fun({_, _, _, Va}, {_, _, _, Vb}) -> (Va < Vb) end, LD),
 %%      io:format(user, "    Impact Step: {NID, N, Delta, Error} =~256p, WL=~256p.~n", [Choice, cortex:extractWeightsList(Cortex_Id, Nid)]),
       hd(Choice)
-    end || N <- lists:seq(0, length(WL)-1)] || {Nid, WL, _Bias} <- cortex:extractWeightsList(Cortex_Id)],
+    end || N <- lists:seq(0, length(WL)-1)] || {Nid, WL, Bias} <- cortex:extractWeightsList(Cortex_Id)],
 %  io:format(user, "~nLT := ~128p.~n", [lists:flatten(LT)]),
   [P0, P1 | _] = lists:sort(fun({_, _, _, Va}, {_, _, _, Vb}) -> (Va < Vb) end, lists:flatten(LT)),
-  [begin 
-     {_Nid, WTs, _Bias} = cortex:extractWeightsList(Cortex_Id, Nid),
-     cortex:updateWeights(Cortex_Id, [{Nid, incNth(Nw, Dlt, WTs)}])
-   end || {Nid, Nw, Dlt, _} <- [P0]], %%[P0, P1]],
+  [case Nw of
+     -1 ->
+       {_Nid, WTs, Bias} = cortex:extractWeightsList(Cortex_Id, Nid),
+       cortex:updateWeights(Cortex_Id, [{Nid, WTs, Bias + 0.1 * Dlt}]);
+     _  ->
+       {_Nid, WTs, Bias} = cortex:extractWeightsList(Cortex_Id, Nid),
+       cortex:updateWeights(Cortex_Id, [{Nid, incNth(Nw, Dlt, WTs), Bias}])
+   end || {Nid, Nw, Dlt, _} <- [P0, P1]],
   P0.
 
 incNth(N, Dlt, List) ->

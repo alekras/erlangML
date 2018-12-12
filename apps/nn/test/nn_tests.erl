@@ -118,6 +118,8 @@ train(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
   wait_all(1),
   cortex:send_signal_to(cortex_1, [{0, 0.0}, {1, 1.0}]),
   wait_all(1),
+  cortex:send_signal_to(cortex_1, [{0, 0.0}, {1, 0.0}]),
+  wait_all(1),
 %%  W1 = wait_all(20 * 13),
   unregister(test_result),
 %%  ?assert(W1),
@@ -180,7 +182,7 @@ configuration(1) ->
                                                   ]}
   ];
 configuration(2) ->
-  W = 0.7,
+  W = 0.5,
   B = 0.0,
   [
     #inp_config{type = sensor, nid = 0, input = []},

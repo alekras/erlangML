@@ -15,7 +15,7 @@
 %%   actuator/1, 
   connect/3, 
   signal/3, 
-  update_weights/2,
+  update_weights/3,
   rollback_weights/1, 
   extract_genom/1, 
   extract_weights/1
@@ -40,8 +40,8 @@ connect(Pid, OutList, Cortex_Id) ->
 signal(Pid, CallerNid, Input) ->
   gen_server:cast(Pid, {signal, CallerNid, Input}).
 
-update_weights(Pid, Weight_List) ->
-  gen_server:call(Pid, {update, Weight_List}).
+update_weights(Pid, Weight_List, Bias) ->
+  gen_server:call(Pid, {update, Weight_List, Bias}).
 
 rollback_weights(Pid) ->
   gen_server:call(Pid, rollback).
@@ -91,11 +91,11 @@ init(#inp_config{type = actuator, nid = NeuronId, bias = Bias, input = InputList
   Reason :: term().
 %% ====================================================================
 
-handle_call({update, Weight_List}, _From, #state{component_type = neuron, input = Input} = State) ->
+handle_call({update, Weight_List, Bias}, _From, #state{component_type = neuron, input = Input} = State) ->
 %%  io:format("Neuron[~p] Update weights: Old W= ~128p New W=~128p.~n", [State#state.nid, Input, Weight_List]),
   New_Input = update(Input, Weight_List),
 %%  io:format("New_Input= ~128p.~n", [New_Input]),
-  {reply, ok, State#state{input = New_Input, input_bak = Input, signals = New_Input}};
+  {reply, ok, State#state{input = New_Input, input_bak = Input, signals = New_Input, bias = Bias}};
 
 handle_call(rollback, _From, #state{component_type = neuron, input_bak = []} = State) ->
   {reply, ok, State};
