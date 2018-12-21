@@ -9,43 +9,58 @@
 %% API functions
 %% ====================================================================
 -export([
-  run_step/3,
   run_loop/5,
-  incNth/3
+  run_loop_pt/5
 ]).
 -warning("...compiling nn_trainer.").
 
+run_loop_pt(_Cortex_Id, _Impacts, _Error_dsr, 0, _M) -> stop;
+run_loop_pt(Cortex_Id, Impacts, Error_dsr, N, M) ->
+  cortex:set_scape(Cortex_Id, self()),
+  io:format(user, "Step[~p].~n", [N]),
+  Err0 = external_impact(Cortex_Id, Impacts, 0),
+  {Err, Mf} = run_step_pt(Cortex_Id, Impacts, Err0, M),
+  io:format(user, "    [~p] Err=~p, Iter N=~p.~n", [N, Err, Mf]),
+  io:format(user, "    Weights after run_step_pt: ~256p.~n", [cortex:extractWeightsList(Cortex_Id)]),
+  if (Err > Error_dsr) ->
+    run_loop_pt(Cortex_Id, Impacts, Error_dsr, N - 1, M);
+  (Err < Error_dsr) ->
+    done;
+  true ->
+    false
+  end.
+
 run_loop(Cortex_Id, Impact, Deltas, Error_dsr, N) ->
+  cortex:set_scape(Cortex_Id, self()),
   run_loop(Cortex_Id, Impact, Deltas, Error_dsr, N, [{-1,0,0.0,10.0},{-1,0,0.0,10.0},{-1,0,0.0,10.0}]).
 
 run_loop(_Cortex_Id, _Impact, _Deltas, _Err, 0, _History) -> stop;
-run_loop(Cortex_Id, Impacts, Deltas, Error, N, [{Pr_nid, Pr_Nw, Pr_Dlt, Pr_err} = Pr1, Pr2, _Pr3] = History) ->
+run_loop(Cortex_Id, Impacts, Deltas, Error, N, [{Pr_nid, _Pr_Nw, _Pr_Dlt, Pr_err} = Pr1, Pr2, _Pr3] = _History) ->
   io:format(user, "Step[~p] error=~p.~n", [N, Error]),
   B = run_step(Cortex_Id, Impacts, Deltas),
   {Nid, Nw, Dlt, Err} = B,
   io:format(user, "    [~p] NID=~p, N=~p, Delta=~p, Err=~p.~n", [N, Nid, Nw, Dlt, Err]),
-%  io:format(user, "Weights after Train: ~128p.~n", [cortex:extractWeightsList(cortex_1)]),
-  if (Err > Error) and (Err < (Pr_err - Error * 0.1)) ->
+  io:format(user, "Weights after Train: ~256p.~n", [cortex:extractWeightsList(Cortex_Id)]),
+  if (Err > Error) and (Err < Pr_err) ->
     run_loop(Cortex_Id, Impacts, Deltas, Error, N - 1, [B, Pr1, Pr2]);
-  (Err > Error) and (Err >= (Pr_err - Error * 0.1)) ->
-    io:format(user, "Change Delta:    ~p.~n", [lists:map(fun(A) -> A * 0.5 end, Deltas)]),
+  (Err > Error) and (Nid =:= Pr_nid) ->
+    io:format(user, "Change Delta: Curr Nid = ~p[~p], Curr err = ~p, Prev err = ~p, deltas = ~128p.~n", [Nid, Pr_nid, Err, Pr_err, lists:map(fun(A) -> A * 0.5 end, Deltas)]),
+    cortex:rollbackWeights(Cortex_Id, Nid),
     run_loop(Cortex_Id, Impacts, lists:map(fun(A) -> A * 0.5 end, Deltas), Error, N - 1, [B, Pr1, Pr2]);
+  (Err > Error) and (Nid =/= Pr_nid) ->
+    io:format(user, "Change Delta: Curr Nid = ~p[~p], Curr err = ~p, Prev err = ~p, deltas = ~128p.~n", [Nid, Pr_nid, Err, Pr_err, lists:map(fun(A) -> A * 2.0 end, Deltas)]),
+    cortex:rollbackWeights(Cortex_Id, Nid),
+    run_loop(Cortex_Id, Impacts, lists:map(fun(A) -> A * 2.0 end, Deltas), Error, N - 1, [B, Pr1, Pr2]);
   (Err < Error) ->
     done;
   true ->
-    io:format(user, "Deltas=~p, err=~p, Prev err=~p.~n", [Deltas, Err, (Pr_err - Error * 0.1)]),
+    io:format(user, "Deltas=~p, err=~p, Prev err=~p, Prev=~p.~n", [Deltas, Err, (Pr_err + Error * 0.1), Pr1]),
     false
   end.
 
-%% run_impact_step(_Cortex_Id, [], _Delta, Error) ->
-%%   math:sqrt(Error);
-%% run_impact_step(Cortex_Id, [{Sensor_Signals, Goal} | Impact], Delta, Error) ->
-%%   B = run_step(Cortex_Id, Sensor_Signals, Goal, Delta),
-%%   {_,_,_, Err} = B,
-%%   io:format(user, "Impact Step: goal=~p, Error=~p.~n", [Goal, B]),
-%%   run_impact_step(Cortex_Id, Impact, Delta, Error + (Err * Err)).
-
 external_impact(_Cortex_Id, [], Error) ->
+  io:format(user, "    Impact Step completed for all goals, Error=~p.~n", [math:sqrt(Error)]),
+  io:format(user, "    Weights after impact step: ~1024p.~n", [cortex:extractWeightsList(_Cortex_Id)]),
   math:sqrt(Error);
 external_impact(Cortex_Id, [{Sensor_Signals, Goal} | Impact], Error) ->
   cortex:send_signal_to(Cortex_Id, Sensor_Signals),
@@ -54,11 +69,10 @@ external_impact(Cortex_Id, [{Sensor_Signals, Goal} | Impact], Error) ->
     Res when is_list(Res) ->
       abs(Goal - lists:sum(lists:flatten(Res)))
   end,
-%%  io:format(user, "  Impact Step: goal=~p, Error=~p, Res=~128p, Sum=~p.~n", [Goal, Err, Res, lists:sum(lists:flatten(Res))]),
+%%  io:format(user, "  --  Impact Step: goal=~p, Error=~p, Sum=~p.~n", [Goal, Err, lists:sum(lists:flatten(Res))]),
   external_impact(Cortex_Id, Impact, Error + (Err * Err)).
 
 run_step(Cortex_Id, Impacts, Deltas) ->
-  cortex:set_scape(Cortex_Id, self()),
   LT =
   [[case N of
       -1 ->
@@ -83,11 +97,11 @@ run_step(Cortex_Id, Impacts, Deltas) ->
        end || D <- Deltas],
       cortex:updateWeights(Cortex_Id, [{Nid, WL, Bias}]),
       Choice = lists:sort(fun({_, _, _, Va}, {_, _, _, Vb}) -> (Va < Vb) end, LD),
-%%      io:format(user, "    Impact Step: {NID, N, Delta, Error} =~256p, WL=~256p.~n", [Choice, cortex:extractWeightsList(Cortex_Id, Nid)]),
+      io:format(user, "    Impact Step completed for all deltas and N=~p: min={NID, N, Delta, Error} =~256p.~n", [N, hd(Choice)]),
       hd(Choice)
     end || N <- lists:seq(0, length(WL)-1)] || {Nid, WL, Bias} <- cortex:extractWeightsList(Cortex_Id)],
 %  io:format(user, "~nLT := ~128p.~n", [lists:flatten(LT)]),
-  [P0, P1 | _] = lists:sort(fun({_, _, _, Va}, {_, _, _, Vb}) -> (Va < Vb) end, lists:flatten(LT)),
+  [P0, _P1 | _] = lists:sort(fun({_, _, _, Va}, {_, _, _, Vb}) -> (Va < Vb) end, lists:flatten(LT)),
   [case Nw of
      -1 ->
        {_Nid, WTs, Bias} = cortex:extractWeightsList(Cortex_Id, Nid),
@@ -95,18 +109,32 @@ run_step(Cortex_Id, Impacts, Deltas) ->
      _  ->
        {_Nid, WTs, Bias} = cortex:extractWeightsList(Cortex_Id, Nid),
        cortex:updateWeights(Cortex_Id, [{Nid, incNth(Nw, Dlt, WTs), Bias}])
-   end || {Nid, Nw, Dlt, _} <- [P0, P1]],
+   end || {Nid, Nw, Dlt, _} <- [P0]], %[P0, P1]],
   P0.
 
-incNth(N, Dlt, List) ->
-  incNth(N, Dlt, List, []).
+run_step_pt(_Cortex_Id, _Impacts, Err, 0) -> {Err, 0};
+run_step_pt(Cortex_Id, Impacts, Min_Error, M) ->
+  [cortex:perturbWeights(Cortex_Id, Nid) || {Nid, _WL, _Bias} <- cortex:extractWeightsList(Cortex_Id)],
+%  io:format(user, "~nLT := ~128p.~n", [lists:flatten(LT)]),
+  Err = external_impact(Cortex_Id, Impacts, 0),
+  if Err < Min_Error ->
+      run_step_pt(Cortex_Id, Impacts, Err, M - 1);
+    true ->
+      cortex:rollbackWeights(Cortex_Id),
+      run_step_pt(Cortex_Id, Impacts, Min_Error, M - 1)
+  end.
 
-incNth(_N, _Dlt, [], Rslt) ->
-  lists:reverse(Rslt);
-incNth(0, Dlt, [H | List], Rslt) ->
-  incNth(-1, Dlt, List, [(H + Dlt) | Rslt]);
-incNth(N, Dlt, [H | List], Rslt) ->
-  incNth(N - 1, Dlt, List, [H | Rslt]).
+incNth(N, Dlt, List) ->
+  {New_List, _} = lists:mapfoldl(fun(A, Acc) -> {if (Acc =:= N) -> A + Dlt; true -> A end, Acc + 1} end, 0, List),
+  New_List.
+%%   incNth(N, Dlt, List, []).
+%% 
+%% incNth(_N, _Dlt, [], Rslt) ->
+%%   lists:reverse(Rslt);
+%% incNth(0, Dlt, [H | List], Rslt) ->
+%%   incNth(-1, Dlt, List, [(H + Dlt) | Rslt]);
+%% incNth(N, Dlt, [H | List], Rslt) ->
+%%   incNth(N - 1, Dlt, List, [H | Rslt]).
 
 %% ====================================================================
 %% Behavioural functions

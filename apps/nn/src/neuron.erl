@@ -16,6 +16,7 @@
   connect/3, 
   signal/3, 
   update_weights/3,
+  perturb_weights/1,
   rollback_weights/1, 
   extract_genom/1, 
   extract_weights/1
@@ -42,6 +43,9 @@ signal(Pid, CallerNid, Input) ->
 
 update_weights(Pid, Weight_List, Bias) ->
   gen_server:call(Pid, {update, Weight_List, Bias}).
+
+perturb_weights(Pid) ->
+  gen_server:call(Pid, perturb).
 
 rollback_weights(Pid) ->
   gen_server:call(Pid, rollback).
@@ -91,16 +95,24 @@ init(#inp_config{type = actuator, nid = NeuronId, bias = Bias, input = InputList
   Reason :: term().
 %% ====================================================================
 
-handle_call({update, Weight_List, Bias}, _From, #state{component_type = neuron, input = Input} = State) ->
+handle_call({update, Weight_List, New_Bias}, _From, #state{component_type = neuron, input = Input, bias = Bias} = State) ->
 %%  io:format("Neuron[~p] Update weights: Old W= ~128p New W=~128p.~n", [State#state.nid, Input, Weight_List]),
   New_Input = update(Input, Weight_List),
 %%  io:format("New_Input= ~128p.~n", [New_Input]),
-  {reply, ok, State#state{input = New_Input, input_bak = Input, signals = New_Input, bias = Bias}};
+  {reply, ok, State#state{input = New_Input, input_bak = Input, signals = New_Input, bias = New_Bias, bias_bak = Bias}};
+
+handle_call(perturb, _From, #state{component_type = neuron, input = Input, bias = Bias} = State) ->
+%%  io:format("Neuron[~p] Update weights: Old W= ~128p New W=~128p.~n", [State#state.nid, Input, Weight_List]),
+  P = 1 / math:sqrt(length(Input) + 1),
+  New_Input = perturb(P, Input),
+  New_Bias = perturb(P, Bias),
+%%  io:format("New_Input= ~128p.~n", [New_Input]),
+  {reply, ok, State#state{input = New_Input, input_bak = Input, signals = New_Input, bias = New_Bias, bias_bak = Bias}};
 
 handle_call(rollback, _From, #state{component_type = neuron, input_bak = []} = State) ->
   {reply, ok, State};
-handle_call(rollback, _From, #state{component_type = neuron, input_bak = InputBak} = State) ->
-  {reply, ok, State#state{input = InputBak, signals = InputBak, input_bak = []}};
+handle_call(rollback, _From, #state{component_type = neuron, input_bak = InputBak, bias_bak = Bias} = State) ->
+  {reply, ok, State#state{input = InputBak, signals = InputBak, input_bak = [], bias = Bias, bias_bak = 0.0}};
 
 handle_call(extract_genom, _From, #state{component_type = Type, nid = Nid, input = Input, bias = Bias} = State) ->
   Genom = #inp_config{type = Type, nid = Nid, bias = Bias, input = Input},
@@ -122,6 +134,21 @@ update([], _, L3) -> lists:reverse(L3);
 update(_, [], L3) -> lists:reverse(L3);
 update([Inp_Item | L1], [New_W | L2], L3) ->
   update(L1, L2, [Inp_Item#inp_item{weight = New_W} | L3]).
+
+perturb(P, Value) when is_float(Value) ->
+  RV = rand:uniform(),
+  case RV < P of
+    true ->
+      V = Value + (RV - 0.5) * ?DELTA_MULTIPLIER,
+      if
+        V < -?SAT_LIMIT -> -?SAT_LIMIT;
+        V > ?SAT_LIMIT -> ?SAT_LIMIT;
+        true -> V
+      end;
+     false -> Value
+  end;
+perturb(P, InpList) when is_list(InpList) ->
+  lists:map(fun(#inp_item{weight = W} = Inp) -> Inp#inp_item{weight = perturb(P, W)} end, InpList).
 
 %% handle_cast/2
 %% ====================================================================

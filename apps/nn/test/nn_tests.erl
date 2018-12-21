@@ -47,7 +47,8 @@ eml_test_() ->
 					fun testing:do_cleanup/2, 
 					[
 %						{{1, config}, fun configure/2}
-            {{1, train}, fun train/2}
+%            {{1, train}, fun train/2}
+            {{1, train_with_perturb}, fun train_with_perturb/2}
 					]
 			 }
 			]}
@@ -100,9 +101,15 @@ train(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
   cortex:applyGenotype(cortex_1, configuration(2)),
 
   ?debug_Fmt("Weights before Train: ~128p.~n", [cortex:extractWeightsList(cortex_1)]),
-  LR = nn_trainer:run_loop(cortex_1, [{[{0, 1.0}, {1, 1.0}], 2.0}, {[{0, 1.0}, {1, 0.0}], 1.0}, {[{0, 0.0}, {1, 1.0}], 1.0}, {[{0, 0.0}, {1, 0.0}], 0.0}], 
-                           [-0.8, -0.4, -0.2, 0, 0.2, 0.4, 0.8], 
-                           0.01, 50),
+  LR = nn_trainer:run_loop(cortex_1, 
+                           [
+                             {[{0, 1.0},   {1, 1.0}],  1.0}, 
+                             {[{0, 1.0},  {1, -1.0}], -1.0}, 
+                             {[{0, -1.0},  {1, 1.0}], -1.0}, 
+                             {[{0, -1.0}, {1, -1.0}], -1.0}
+                           ], 
+                           [-0.2, -0.1, 0.1, 0.2], 
+                           0.01, 10),
   ?debug_Fmt("Train Result: ~128p.", [LR]),
   ?debug_Fmt("Weights after Train: ~128p.", [cortex:extractWeightsList(cortex_1)]),
 %  cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
@@ -114,11 +121,52 @@ train(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
   cortex:set_call_back(cortex_1, Fun1),
   cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, 1.0}]),
   wait_all(1),
-  cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, 0.0}]),
+  cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, -1.0}]),
   wait_all(1),
-  cortex:send_signal_to(cortex_1, [{0, 0.0}, {1, 1.0}]),
+  cortex:send_signal_to(cortex_1, [{0, -1.0}, {1, 1.0}]),
   wait_all(1),
-  cortex:send_signal_to(cortex_1, [{0, 0.0}, {1, 0.0}]),
+  cortex:send_signal_to(cortex_1, [{0, -1.0}, {1, -1.0}]),
+  wait_all(1),
+%%  W1 = wait_all(20 * 13),
+  unregister(test_result),
+%%  ?assert(W1),
+  ?PASSED
+end}.
+
+train_with_perturb(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
+%  ?debug_Fmt("~n::test:: train: ~p ~p",[_X, _Y]),
+  register(test_result, self()),
+
+  cortex_sup:new_nn(cortex_sup, 1),
+  cortex:applyGenotype(cortex_1, configuration(2)),
+
+  ?debug_Fmt("Weights before Train: ~128p.~n", [cortex:extractWeightsList(cortex_1)]),
+  LR = nn_trainer:run_loop_pt(cortex_1, 
+                           [
+                             {[{0, 1.0},   {1, 1.0}],  1.0}, 
+                             {[{0, 1.0},  {1, -1.0}], -1.0}, 
+                             {[{0, -1.0},  {1, 1.0}], -1.0}, 
+                             {[{0, -1.0}, {1, -1.0}], -1.0}
+                           ], 
+                           0.01, 
+                           20,
+                           15),
+  ?debug_Fmt("Train Result: ~128p.", [LR]),
+  ?debug_Fmt("Weights after Train: ~128p.", [cortex:extractWeightsList(cortex_1)]),
+%  cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
+  Fun1 = 
+    fun(Res) -> 
+      ?debug_Fmt("::test:: RESULT[0]: ~128p.", [lists:sum(lists:flatten(Res))]), 
+      test_result ! done 
+    end,
+  cortex:set_call_back(cortex_1, Fun1),
+  cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, 1.0}]),
+  wait_all(1),
+  cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, -1.0}]),
+  wait_all(1),
+  cortex:send_signal_to(cortex_1, [{0, -1.0}, {1, 1.0}]),
+  wait_all(1),
+  cortex:send_signal_to(cortex_1, [{0, -1.0}, {1, -1.0}]),
   wait_all(1),
 %%  W1 = wait_all(20 * 13),
   unregister(test_result),
@@ -182,7 +230,7 @@ configuration(1) ->
                                                   ]}
   ];
 configuration(2) ->
-  W = 0.5,
+  W = 0.1,
   B = 0.0,
   [
     #inp_config{type = sensor, nid = 0, input = []},
