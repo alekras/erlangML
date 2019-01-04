@@ -105,7 +105,8 @@ handle_call(perturb, _From, #state{component_type = neuron, input = Input, bias 
 %%  io:format("Neuron[~p] Update weights: Old W= ~128p New W=~128p.~n", [State#state.nid, Input, Weight_List]),
   P = 1 / math:sqrt(length(Input) + 1),
   New_Input = perturb(P, Input),
-  New_Bias = perturb(P, Bias),
+%  New_Bias = perturb(P, Bias),
+  New_Bias = Bias,
 %%  io:format("New_Input= ~128p.~n", [New_Input]),
   {reply, ok, State#state{input = New_Input, input_bak = Input, signals = New_Input, bias = New_Bias, bias_bak = Bias}};
 
@@ -139,7 +140,7 @@ perturb(P, Value) when is_float(Value) ->
   RV = rand:uniform(),
   case RV < P of
     true ->
-      V = Value + (RV - 0.5) * ?DELTA_MULTIPLIER,
+      V = Value + (rand:uniform() - 0.5) * ?DELTA_MULTIPLIER,
       if
         V < -?SAT_LIMIT -> -?SAT_LIMIT;
         V > ?SAT_LIMIT -> ?SAT_LIMIT;

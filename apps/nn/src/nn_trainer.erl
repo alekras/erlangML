@@ -60,17 +60,29 @@ run_loop(Cortex_Id, Impacts, Deltas, Error, N, [{Pr_nid, _Pr_Nw, _Pr_Dlt, Pr_err
 
 external_impact(_Cortex_Id, [], Error) ->
   io:format(user, "    Impact Step completed for all goals, Error=~p.~n", [math:sqrt(Error)]),
-  io:format(user, "    Weights after impact step: ~1024p.~n", [cortex:extractWeightsList(_Cortex_Id)]),
+  io:format(user, "    Weights after impact step:~n~s", [print_weigths(cortex:extractWeightsList(_Cortex_Id))]),
   math:sqrt(Error);
 external_impact(Cortex_Id, [{Sensor_Signals, Goal} | Impact], Error) ->
   cortex:send_signal_to(Cortex_Id, Sensor_Signals),
   Err =
   receive
     Res when is_list(Res) ->
-      abs(Goal - lists:sum(lists:flatten(Res)))
+      LR = lists:flatten(Res),
+      E = abs(Goal - lists:sum(LR)), %% / length(LR)),
+%%      io:format(user, "  --  Impact Step: goal=~p, Error=~p, Sum=~p.~n", [Goal, E, (lists:sum(LR) / length(LR))]),
+      io:format(user, "  --  Impact Step: goal=~p, Error=~p, Sum=~p.~n", [Goal, E, lists:sum(LR)]),
+      E
   end,
-%%  io:format(user, "  --  Impact Step: goal=~p, Error=~p, Sum=~p.~n", [Goal, Err, lists:sum(lists:flatten(Res))]),
   external_impact(Cortex_Id, Impact, Error + (Err * Err)).
+
+print_floats([W | []]) ->
+  io_lib:format("~5.2f", [W]);
+print_floats([W | WL]) ->
+  io_lib:format("~5.2f,", [W]) ++ print_floats(WL).
+
+print_weigths([]) -> "";
+print_weigths([{Nid, WL, B} | L]) ->
+  lists:concat(["{", Nid, ",[", print_floats(WL), "],", io_lib:format("~5.2f", [B]), "}\n"]) ++ print_weigths(L).
 
 run_step(Cortex_Id, Impacts, Deltas) ->
   LT =
@@ -119,6 +131,7 @@ run_step_pt(Cortex_Id, Impacts, Min_Error, M) ->
   Err = external_impact(Cortex_Id, Impacts, 0),
   if Err < Min_Error ->
       run_step_pt(Cortex_Id, Impacts, Err, M - 1);
+%%      {Err, M};
     true ->
       cortex:rollbackWeights(Cortex_Id),
       run_step_pt(Cortex_Id, Impacts, Min_Error, M - 1)

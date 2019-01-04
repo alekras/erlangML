@@ -138,35 +138,37 @@ train_with_perturb(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
   register(test_result, self()),
 
   cortex_sup:new_nn(cortex_sup, 1),
-  cortex:applyGenotype(cortex_1, configuration(2)),
+  cortex:applyGenotype(cortex_1, configuration(3)),
 
   ?debug_Fmt("Weights before Train: ~128p.~n", [cortex:extractWeightsList(cortex_1)]),
   LR = nn_trainer:run_loop_pt(cortex_1, 
                            [
-                             {[{0, 1.0},   {1, 1.0}],  1.0}, 
-                             {[{0, 1.0},  {1, -1.0}], -1.0}, 
-                             {[{0, -1.0},  {1, 1.0}], -1.0}, 
-                             {[{0, -1.0}, {1, -1.0}], -1.0}
+                             {[{0, 1.0},   {1, 1.0}],  2.0},
+                             {[{0, 1.0},  {1, 0.0}], 1.0},
+                             {[{0, 0.0},  {1, 1.0}], 1.0},
+                             {[{0, 0.0}, {1, 0.0}],  0.0}
                            ], 
                            0.01, 
-                           20,
-                           15),
+                           50, % loop #
+                           50), % step #
   ?debug_Fmt("Train Result: ~128p.", [LR]),
   ?debug_Fmt("Weights after Train: ~128p.", [cortex:extractWeightsList(cortex_1)]),
 %  cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
   Fun1 = 
-    fun(Res) -> 
-      ?debug_Fmt("::test:: RESULT[0]: ~128p.", [lists:sum(lists:flatten(Res))]), 
+    fun(Res) ->
+      LiR = lists:flatten(Res),
+      R = lists:sum(LiR), % / length(LiR),
+      ?debug_Fmt("::test:: RESULT[0]: ~128p.", [R]), 
       test_result ! done 
     end,
   cortex:set_call_back(cortex_1, Fun1),
   cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, 1.0}]),
   wait_all(1),
-  cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, -1.0}]),
+  cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, 0.0}]),
   wait_all(1),
-  cortex:send_signal_to(cortex_1, [{0, -1.0}, {1, 1.0}]),
+  cortex:send_signal_to(cortex_1, [{0, 0.5}, {1, 1.0}]),
   wait_all(1),
-  cortex:send_signal_to(cortex_1, [{0, -1.0}, {1, -1.0}]),
+  cortex:send_signal_to(cortex_1, [{0, 0.0}, {1, 0.0}]),
   wait_all(1),
 %%  W1 = wait_all(20 * 13),
   unregister(test_result),
@@ -230,13 +232,13 @@ configuration(1) ->
                                                   ]}
   ];
 configuration(2) ->
-  W = 0.1,
+  W = 1.0,
   B = 0.0,
   [
     #inp_config{type = sensor, nid = 0, input = []},
     #inp_config{type = sensor, nid = 1, input = []},
     #inp_config{type = neuron, nid = 2, input = [#inp_item{nid = 0, weight = W},
-                                                 #inp_item{nid = 3, weight = W}],
+                                                 #inp_item{nid = 1, weight = W}],
                 bias = B},
     #inp_config{type = neuron, nid = 3, input = [#inp_item{nid = 0, weight = W},
                                                  #inp_item{nid = 1, weight = W}],
@@ -244,7 +246,7 @@ configuration(2) ->
     #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 0, weight = W},
                                                  #inp_item{nid = 1, weight = W}],
                 bias = B},
-    #inp_config{type = neuron, nid = 5, input = [#inp_item{nid = 4, weight = W},
+    #inp_config{type = neuron, nid = 5, input = [#inp_item{nid = 0, weight = W},
                                                  #inp_item{nid = 1, weight = W}],
                 bias = B},
     #inp_config{type = neuron, nid = 6, input = [#inp_item{nid = 2, weight = W},
@@ -265,9 +267,80 @@ configuration(2) ->
     #inp_config{type = actuator, nid = 11, input = [#inp_item{nid = 6},
                                                     #inp_item{nid = 9},
                                                     #inp_item{nid = 10}
-                                                   ]},
-    #inp_config{type = actuator, nid = 12, input = [#inp_item{nid = 8},
+                                                   ]} %%,
+%%     #inp_config{type = actuator, nid = 12, input = [#inp_item{nid = 8},
+%%                                                     #inp_item{nid = 9},
+%%                                                     #inp_item{nid = 10}
+%%                                                    ]}
+  ];
+configuration(xOr) ->
+  [
+    #inp_config{type = sensor, nid = 0, input = []},
+    #inp_config{type = sensor, nid = 1, input = []},
+    #inp_config{type = neuron, nid = 2, input = [#inp_item{nid = 0, weight = 2.1081},
+                                                 #inp_item{nid = 1, weight = 2.2440}
+                                                ],
+                bias = 2.2533},
+    #inp_config{type = neuron, nid = 3, input = [#inp_item{nid = 0, weight = 3.4964},
+                                                 #inp_item{nid = 1, weight = -2.7464}
+                                                ],
+                bias = 3.5200},
+    #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 2, weight = -2.5983},
+                                                 #inp_item{nid = 3, weight = 2.7354}
+                                                ],
+                bias = 2.7255},
+    #inp_config{type = actuator, nid = 5, input = [#inp_item{nid = 4}
+                                                   ]}
+  ];
+configuration(3) ->
+  W = 0.5,
+  B = 0.0,
+  [
+    #inp_config{type = sensor, nid = 0},
+    #inp_config{type = sensor, nid = 1},
+    #inp_config{type = neuron, nid = 2, input = [#inp_item{nid = 0, weight = W},
+                                                 #inp_item{nid = 1, weight = W}],
+                bias = B},
+    #inp_config{type = neuron, nid = 3, input = [#inp_item{nid = 0, weight = W},
+                                                 #inp_item{nid = 1, weight = W}],
+                bias = B},
+    #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 0, weight = W},
+                                                 #inp_item{nid = 1, weight = W}],
+                bias = B},
+    #inp_config{type = neuron, nid = 5, input = [#inp_item{nid = 0, weight = W},
+                                                 #inp_item{nid = 1, weight = W}],
+                bias = B},
+    #inp_config{type = neuron, nid = 6, input = [#inp_item{nid = 2, weight = W},
+                                                 #inp_item{nid = 3, weight = W},
+                                                 #inp_item{nid = 4, weight = W},
+                                                 #inp_item{nid = 5, weight = W}],
+                bias = B},
+    #inp_config{type = neuron, nid = 7, input = [#inp_item{nid = 2, weight = W},
+                                                 #inp_item{nid = 3, weight = W},
+                                                 #inp_item{nid = 4, weight = W},
+                                                 #inp_item{nid = 5, weight = W}],
+                bias = B},
+    #inp_config{type = neuron, nid = 8, input = [#inp_item{nid = 2, weight = W},
+                                                 #inp_item{nid = 3, weight = W},
+                                                 #inp_item{nid = 4, weight = W},
+                                                 #inp_item{nid = 5, weight = W}],
+                bias = B},
+    #inp_config{type = neuron, nid = 9, input = [#inp_item{nid = 6, weight = W},
+                                                 #inp_item{nid = 7, weight = W},
+                                                 #inp_item{nid = 8, weight = W}],
+                bias = B},
+    #inp_config{type = neuron, nid = 10, input = [#inp_item{nid = 6, weight = W},
+                                                  #inp_item{nid = 7, weight = W},
+                                                  #inp_item{nid = 8, weight = W}],
+                bias = B},
+    #inp_config{type = neuron, nid = 11, input = [#inp_item{nid = 6, weight = W},
+                                                  #inp_item{nid = 7, weight = W},
+                                                  #inp_item{nid = 8, weight = W}],
+                bias = B},
+
+    #inp_config{type = actuator, nid = 12, input = [#inp_item{nid = 11},
                                                     #inp_item{nid = 9},
                                                     #inp_item{nid = 10}
-                                                   ]}
+                                                  ]
+    }
   ].
