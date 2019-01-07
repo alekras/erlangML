@@ -99,14 +99,14 @@ handle_call({update, Weight_List, New_Bias}, _From, #state{component_type = neur
 %%  io:format("Neuron[~p] Update weights: Old W= ~128p New W=~128p.~n", [State#state.nid, Input, Weight_List]),
   New_Input = update(Input, Weight_List),
 %%  io:format("New_Input= ~128p.~n", [New_Input]),
-  {reply, ok, State#state{input = New_Input, input_bak = Input, signals = New_Input, bias = New_Bias, bias_bak = Bias}};
+  {reply, ok, State#state{input = New_Input, input_bak = Input, signals = New_Input, bias = saturate(New_Bias), bias_bak = Bias}};
 
 handle_call(perturb, _From, #state{component_type = neuron, input = Input, bias = Bias} = State) ->
 %%  io:format("Neuron[~p] Update weights: Old W= ~128p New W=~128p.~n", [State#state.nid, Input, Weight_List]),
   P = 1 / math:sqrt(length(Input) + 1),
   New_Input = perturb(P, Input),
-%  New_Bias = perturb(P, Bias),
-  New_Bias = Bias,
+  New_Bias = perturb(P, Bias),
+%  New_Bias = Bias,
 %%  io:format("New_Input= ~128p.~n", [New_Input]),
   {reply, ok, State#state{input = New_Input, input_bak = Input, signals = New_Input, bias = New_Bias, bias_bak = Bias}};
 
@@ -134,22 +134,25 @@ update(L1, L2) ->
 update([], _, L3) -> lists:reverse(L3);
 update(_, [], L3) -> lists:reverse(L3);
 update([Inp_Item | L1], [New_W | L2], L3) ->
-  update(L1, L2, [Inp_Item#inp_item{weight = New_W} | L3]).
+  update(L1, L2, [Inp_Item#inp_item{weight = saturate(New_W)} | L3]).
 
 perturb(P, Value) when is_float(Value) ->
   RV = rand:uniform(),
   case RV < P of
     true ->
       V = Value + (rand:uniform() - 0.5) * ?DELTA_MULTIPLIER,
-      if
-        V < -?SAT_LIMIT -> -?SAT_LIMIT;
-        V > ?SAT_LIMIT -> ?SAT_LIMIT;
-        true -> V
-      end;
-     false -> Value
+      saturate(V);
+    false -> Value
   end;
 perturb(P, InpList) when is_list(InpList) ->
   lists:map(fun(#inp_item{weight = W} = Inp) -> Inp#inp_item{weight = perturb(P, W)} end, InpList).
+
+saturate(V) ->
+  if
+    V < -?SAT_LIMIT -> -?SAT_LIMIT;
+    V > ?SAT_LIMIT -> ?SAT_LIMIT;
+    true -> V
+  end.
 
 %% handle_cast/2
 %% ====================================================================
@@ -172,11 +175,12 @@ handle_cast({signal, _CallerNid, Input}, #state{component_type = sensor} = State
   {noreply, State};
 
 handle_cast({signal, CallerNid, Input}, #state{component_type = neuron, accum = Accum, signals = Signals} = State) ->
-%%  io:format("Neuron[~p] >>> signal {~p, ~7.3f}  Signals list: ~256p.~n", [State#state.nid, CallerNid, Input, Signals]),
+%  io:format("Neuron[~p] >>> got signal {~p, ~7.3f}  Signals list: ~256p.~n", [State#state.nid, CallerNid, Input, Signals]),
   case lists:keytake(CallerNid, #inp_item.nid, Signals) of
     {value, #inp_item{nid = CallerNid, weight = Weight}, []} ->
-      Final_accum = Accum + Input * Weight + State#state.bias,
-      [signal(Out_Pid, State#state.nid, math:tanh(Final_accum)) || #out_item{nid = _Out_Nid, pid = Out_Pid} <- State#state.output],
+      Final_val = math:tanh(Accum + Input * Weight + State#state.bias),
+%  io:format("Neuron[~p] >>> sent signal {~7.3f}  Signals list: ~256p.~n", [State#state.nid, Final_val, Signals]),
+      [signal(Out_Pid, State#state.nid, Final_val) || #out_item{nid = _Out_Nid, pid = Out_Pid} <- State#state.output],
       New_signals = State#state.input,
       New_accum = 0;
     {value, #inp_item{nid = CallerNid, weight = Weight}, New_signals} ->

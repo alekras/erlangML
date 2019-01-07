@@ -21,7 +21,7 @@ run_loop_pt(Cortex_Id, Impacts, Error_dsr, N, M) ->
   Err0 = external_impact(Cortex_Id, Impacts, 0),
   {Err, Mf} = run_step_pt(Cortex_Id, Impacts, Err0, M),
   io:format(user, "    [~p] Err=~p, Iter N=~p.~n", [N, Err, Mf]),
-  io:format(user, "    Weights after run_step_pt: ~256p.~n", [cortex:extractWeightsList(Cortex_Id)]),
+  io:format(user, "    Weights after run_step_pt:~n~s.~n", [print_weigths(cortex:extractWeightsList(Cortex_Id))]),
   if (Err > Error_dsr) ->
     run_loop_pt(Cortex_Id, Impacts, Error_dsr, N - 1, M);
   (Err < Error_dsr) ->
@@ -40,7 +40,7 @@ run_loop(Cortex_Id, Impacts, Deltas, Error, N, [{Pr_nid, _Pr_Nw, _Pr_Dlt, Pr_err
   B = run_step(Cortex_Id, Impacts, Deltas),
   {Nid, Nw, Dlt, Err} = B,
   io:format(user, "    [~p] NID=~p, N=~p, Delta=~p, Err=~p.~n", [N, Nid, Nw, Dlt, Err]),
-  io:format(user, "Weights after Train: ~256p.~n", [cortex:extractWeightsList(Cortex_Id)]),
+  io:format(user, "Weights after Train:~n~s.~n", [print_weigths(cortex:extractWeightsList(Cortex_Id))]),
   if (Err > Error) and (Err < Pr_err) ->
     run_loop(Cortex_Id, Impacts, Deltas, Error, N - 1, [B, Pr1, Pr2]);
   (Err > Error) and (Nid =:= Pr_nid) ->
@@ -59,8 +59,8 @@ run_loop(Cortex_Id, Impacts, Deltas, Error, N, [{Pr_nid, _Pr_Nw, _Pr_Dlt, Pr_err
   end.
 
 external_impact(_Cortex_Id, [], Error) ->
-  io:format(user, "    Impact Step completed for all goals, Error=~p.~n", [math:sqrt(Error)]),
-  io:format(user, "    Weights after impact step:~n~s", [print_weigths(cortex:extractWeightsList(_Cortex_Id))]),
+%  io:format(user, "    Impact Step completed for all goals, Error=~p.~n", [math:sqrt(Error)]),
+%  io:format(user, "    Weights after impact step:~n~s", [print_weigths(cortex:extractWeightsList(_Cortex_Id))]),
   math:sqrt(Error);
 external_impact(Cortex_Id, [{Sensor_Signals, Goal} | Impact], Error) ->
   cortex:send_signal_to(Cortex_Id, Sensor_Signals),
@@ -70,7 +70,7 @@ external_impact(Cortex_Id, [{Sensor_Signals, Goal} | Impact], Error) ->
       LR = lists:flatten(Res),
       E = abs(Goal - lists:sum(LR)), %% / length(LR)),
 %%      io:format(user, "  --  Impact Step: goal=~p, Error=~p, Sum=~p.~n", [Goal, E, (lists:sum(LR) / length(LR))]),
-      io:format(user, "  --  Impact Step: goal=~p, Error=~p, Sum=~p.~n", [Goal, E, lists:sum(LR)]),
+%%      io:format(user, "  --  Impact Step: goal=~p, Error=~p, Sum=~p.~n", [Goal, E, lists:sum(LR)]),
       E
   end,
   external_impact(Cortex_Id, Impact, Error + (Err * Err)).
@@ -90,7 +90,7 @@ run_step(Cortex_Id, Impacts, Deltas) ->
       -1 ->
       LD =
       [begin
-         cortex:updateWeights(Cortex_Id, [{Nid, WL, Bias + 0.1 * D}]),
+         cortex:updateWeights(Cortex_Id, [{Nid, WL, Bias + D}]),
          Err = external_impact(Cortex_Id, Impacts, 0),
 %         io:format(user, "    Impact Step: NID=~p, Delta=~p, Error=~p, WL=~128p.~n", [Nid, D, Err1, cortex:extractWeightsList(Cortex_Id, Nid)]),
          {Nid, N, D, Err}
@@ -111,13 +111,13 @@ run_step(Cortex_Id, Impacts, Deltas) ->
       Choice = lists:sort(fun({_, _, _, Va}, {_, _, _, Vb}) -> (Va < Vb) end, LD),
       io:format(user, "    Impact Step completed for all deltas and N=~p: min={NID, N, Delta, Error} =~256p.~n", [N, hd(Choice)]),
       hd(Choice)
-    end || N <- lists:seq(0, length(WL)-1)] || {Nid, WL, Bias} <- cortex:extractWeightsList(Cortex_Id)],
+    end || N <- lists:seq(-1, length(WL)-1)] || {Nid, WL, Bias} <- cortex:extractWeightsList(Cortex_Id)],
 %  io:format(user, "~nLT := ~128p.~n", [lists:flatten(LT)]),
   [P0, _P1 | _] = lists:sort(fun({_, _, _, Va}, {_, _, _, Vb}) -> (Va < Vb) end, lists:flatten(LT)),
   [case Nw of
      -1 ->
        {_Nid, WTs, Bias} = cortex:extractWeightsList(Cortex_Id, Nid),
-       cortex:updateWeights(Cortex_Id, [{Nid, WTs, Bias + 0.1 * Dlt}]);
+       cortex:updateWeights(Cortex_Id, [{Nid, WTs, Bias + Dlt}]);
      _  ->
        {_Nid, WTs, Bias} = cortex:extractWeightsList(Cortex_Id, Nid),
        cortex:updateWeights(Cortex_Id, [{Nid, incNth(Nw, Dlt, WTs), Bias}])

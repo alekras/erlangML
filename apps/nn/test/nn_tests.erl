@@ -47,8 +47,9 @@ eml_test_() ->
 					fun testing:do_cleanup/2, 
 					[
 %						{{1, config}, fun configure/2}
-%            {{1, train}, fun train/2}
-            {{1, train_with_perturb}, fun train_with_perturb/2}
+            {{1, train}, fun train/2}
+%            {{1, train_with_perturb}, fun train_with_perturb/2}
+%            {{1, train_xor_with_perturb}, fun train_xor_with_perturb/2}
 					]
 			 }
 			]}
@@ -106,10 +107,10 @@ train(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
                              {[{0, 1.0},   {1, 1.0}],  1.0}, 
                              {[{0, 1.0},  {1, -1.0}], -1.0}, 
                              {[{0, -1.0},  {1, 1.0}], -1.0}, 
-                             {[{0, -1.0}, {1, -1.0}], -1.0}
+                             {[{0, -1.0}, {1, -1.0}],  1.0}
                            ], 
-                           [-0.2, -0.1, 0.1, 0.2], 
-                           0.01, 10),
+                           [-6.3, -3.14, 3.14, 6.3], 
+                           0.01, 100),
   ?debug_Fmt("Train Result: ~128p.", [LR]),
   ?debug_Fmt("Weights after Train: ~128p.", [cortex:extractWeightsList(cortex_1)]),
 %  cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
@@ -133,7 +134,7 @@ train(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
   ?PASSED
 end}.
 
-train_with_perturb(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
+train_with_perturb(_X, _Y) -> {"NN train test", timeout, 360, fun() ->
 %  ?debug_Fmt("~n::test:: train: ~p ~p",[_X, _Y]),
   register(test_result, self()),
 
@@ -143,13 +144,13 @@ train_with_perturb(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
   ?debug_Fmt("Weights before Train: ~128p.~n", [cortex:extractWeightsList(cortex_1)]),
   LR = nn_trainer:run_loop_pt(cortex_1, 
                            [
-                             {[{0, 1.0},   {1, 1.0}],  2.0},
-                             {[{0, 1.0},  {1, 0.0}], 1.0},
-                             {[{0, 0.0},  {1, 1.0}], 1.0},
-                             {[{0, 0.0}, {1, 0.0}],  0.0}
+                             {[{0, 1.0},   {1, 1.0}],  -1.0},
+                             {[{0, 1.0},  {1, -1.0}], 1.0},
+                             {[{0, -1.0},  {1, 1.0}], 1.0},
+                             {[{0, -1.0}, {1, -1.0}],  -1.0}
                            ], 
                            0.01, 
-                           50, % loop #
+                           500, % loop #
                            50), % step #
   ?debug_Fmt("Train Result: ~128p.", [LR]),
   ?debug_Fmt("Weights after Train: ~128p.", [cortex:extractWeightsList(cortex_1)]),
@@ -164,11 +165,54 @@ train_with_perturb(_X, _Y) -> {"NN train test", timeout, 15, fun() ->
   cortex:set_call_back(cortex_1, Fun1),
   cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, 1.0}]),
   wait_all(1),
-  cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, 0.0}]),
+  cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, -1.0}]),
   wait_all(1),
-  cortex:send_signal_to(cortex_1, [{0, 0.5}, {1, 1.0}]),
+  cortex:send_signal_to(cortex_1, [{0, -0.8}, {1, 1.2}]),
   wait_all(1),
-  cortex:send_signal_to(cortex_1, [{0, 0.0}, {1, 0.0}]),
+  cortex:send_signal_to(cortex_1, [{0, -1.0}, {1, -1.0}]),
+  wait_all(1),
+%%  W1 = wait_all(20 * 13),
+  unregister(test_result),
+%%  ?assert(W1),
+  ?PASSED
+end}.
+
+train_xor_with_perturb(_X, _Y) -> {"NN train XOR test", timeout, 15, fun() ->
+%  ?debug_Fmt("~n::test:: train: ~p ~p",[_X, _Y]),
+  register(test_result, self()),
+
+  cortex_sup:new_nn(cortex_sup, 1),
+  cortex:applyGenotype(cortex_1, configuration(xOr)),
+
+  ?debug_Fmt("Weights before Train: ~128p.~n", [cortex:extractWeightsList(cortex_1)]),
+%%   LR = nn_trainer:run_loop_pt(cortex_1, 
+%%                            [
+%%                              {[{0, 1.0},   {1, 1.0}],  2.0},
+%%                              {[{0, 1.0},  {1, 0.0}], 1.0},
+%%                              {[{0, 0.0},  {1, 1.0}], 1.0},
+%%                              {[{0, 0.0}, {1, 0.0}],  0.0}
+%%                            ], 
+%%                            0.01, 
+%%                            50, % loop #
+%%                            50), % step #
+%%   ?debug_Fmt("Train Result: ~128p.", [LR]),
+%%   ?debug_Fmt("Weights after Train: ~128p.", [cortex:extractWeightsList(cortex_1)]),
+%  cortex:send_signal_to(cortex_2, [{0, 2.0}, {1, 1.0}]),
+  Fun1 = 
+    fun(Res) ->
+      LiR = lists:flatten(Res),
+      R = lists:sum(LiR), % / length(LiR),
+      ?debug_Fmt("::test:: RESULT[0]: ~128p.", [R]), 
+      test_result ! done 
+    end,
+  cortex:set_call_back(cortex_1, Fun1),
+  cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, 1.0}]),
+  wait_all(1),
+  cortex:send_signal_to(cortex_1, [{0, 1.0}, {1, -1.0}]),
+  wait_all(1),
+  cortex:send_signal_to(cortex_1, [{0, -1.0}, {1, 1.0}]),
+  wait_all(1),
+  cortex:send_signal_to(cortex_1, [{0, -1.0}, {1, -1.0}]),
   wait_all(1),
 %%  W1 = wait_all(20 * 13),
   unregister(test_result),
@@ -232,7 +276,7 @@ configuration(1) ->
                                                   ]}
   ];
 configuration(2) ->
-  W = 1.0,
+  W = 0.1,
   B = 0.0,
   [
     #inp_config{type = sensor, nid = 0, input = []},
@@ -273,7 +317,7 @@ configuration(2) ->
 %%                                                     #inp_item{nid = 10}
 %%                                                    ]}
   ];
-configuration(xOr) ->
+configuration(o_r) ->
   [
     #inp_config{type = sensor, nid = 0, input = []},
     #inp_config{type = sensor, nid = 1, input = []},
@@ -285,10 +329,29 @@ configuration(xOr) ->
                                                  #inp_item{nid = 1, weight = -2.7464}
                                                 ],
                 bias = 3.5200},
-    #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 2, weight = -2.5983},
-                                                 #inp_item{nid = 3, weight = 2.7354}
+    #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 3, weight = -2.5983},
+                                                 #inp_item{nid = 2, weight = 2.7354}
                                                 ],
                 bias = 2.7255},
+    #inp_config{type = actuator, nid = 5, input = [#inp_item{nid = 4}
+                                                   ]}
+  ];
+configuration(xOr) ->
+  [
+    #inp_config{type = sensor, nid = 0, input = []},
+    #inp_config{type = sensor, nid = 1, input = []},
+    #inp_config{type = neuron, nid = 2, input = [#inp_item{nid = 0, weight = -6.283185307179586},
+                                                 #inp_item{nid = 1, weight = 6.283185307179586}
+                                                ],
+                bias = -6.283185307179586},
+    #inp_config{type = neuron, nid = 3, input = [#inp_item{nid = 0, weight = -5.663623085487123},
+                                                 #inp_item{nid = 1, weight = 6.283185307179586}
+                                                ],
+                bias = 6.283185307179586},
+    #inp_config{type = neuron, nid = 4, input = [#inp_item{nid = 3, weight = -6.283185307179586},
+                                                 #inp_item{nid = 2, weight = 6.283185307179586}
+                                                ],
+                bias = 6.283185307179586},
     #inp_config{type = actuator, nid = 5, input = [#inp_item{nid = 4}
                                                    ]}
   ];
