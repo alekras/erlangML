@@ -109,7 +109,7 @@ run_step(Cortex_Id, Impacts, Deltas) ->
        end || D <- Deltas],
       cortex:updateWeights(Cortex_Id, [{Nid, WL, Bias}]),
       Choice = lists:sort(fun({_, _, _, Va}, {_, _, _, Vb}) -> (Va < Vb) end, LD),
-      io:format(user, "    Impact Step completed for all deltas and N=~p: min={NID, N, Delta, Error} =~256p.~n", [N, hd(Choice)]),
+%      io:format(user, "    Impact Step completed for all deltas and N=~p: min={NID, N, Delta, Error} =~256p.~n", [N, hd(Choice)]),
       hd(Choice)
     end || N <- lists:seq(-1, length(WL)-1)] || {Nid, WL, Bias} <- cortex:extractWeightsList(Cortex_Id)],
 %  io:format(user, "~nLT := ~128p.~n", [lists:flatten(LT)]),

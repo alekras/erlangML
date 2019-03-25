@@ -276,7 +276,7 @@ configuration(1) ->
                                                   ]}
   ];
 configuration(2) ->
-  W = 0.1,
+  W = 1.0,
   B = 0.0,
   [
     #inp_config{type = sensor, nid = 0, input = []},
